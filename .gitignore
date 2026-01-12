@@ -1,0 +1,4 @@
+clock_kaggle/*.h5
+
+# model weights
+*.h5
