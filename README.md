@@ -5,7 +5,7 @@ Interpretable Analog Clock Reading with Neuro-Symbolic Constraints (DeepProbLog)
 
 ## Overview
 This project aims to recognize time from analog clock images using a neuro-symbolic approach.
-We separately estimate **clock hands** and **dial orientation**, then integrate them via "probabilistic logic reasoning (DeepProbLog)".
+We separately estimate **clock hands** and **dial orientation**, then integrate them via **"probabilistic logic reasoning (DeepProbLog)"**.
 
 ## Objective
 - Recognize the time from analog clock images
@@ -17,11 +17,11 @@ We separately estimate **clock hands** and **dial orientation**, then integrate 
 - Train a supervised model to output a **probabilistic distribution** over angles (or discretized time bins)
 
 ### 2) Dial module (supervised)
-- Detect the **12 o’clock direction**
-- Estimate clock **in-plane rotation** (dial orientation)
+- Detect the **12 o’clock direction** by keypoint detector.
+- Estimate clock **dial orientation** to adapt to normalization.
 
 ### 3) Logic integration (DeepProbLog)
-- Use probabilistic outputs from the hand & dial modules
+- Use probabilistic outputs from the hand(angle) & dial(rotation) modules
 - Apply geometric rules to convert them into a time prediction
 - Train by maximizing the probability (likelihood) of the correct time label via probabilistic inference
 
@@ -33,7 +33,7 @@ We compare the proposed model with:
 
 ## Datasets
 Two datasets are prepared:
-1. **Synthetic analog clock images**
-2. **Real-world clock images** (with plot/annotations)
+1. **Synthetic analog clock images(clock kaggle)**
+2. **Real-world clock images**
 
 For each dataset, we evaluate all three methods above.

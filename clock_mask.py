@@ -10,10 +10,10 @@ def extract_hand_mask(bgr):
     gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
     gray = cv2.GaussianBlur(gray, (5,5), 0)
 
-    # 暗い部分を1に（Otsu）
+    # 暗い部分を1に
     _, bin_inv = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
 
-    # 小ノイズ除去
+    # ノイズ除去
     bin_inv = cv2.morphologyEx(bin_inv, cv2.MORPH_OPEN, np.ones((3,3),np.uint8), iterations=1)
 
     # 連結成分
@@ -32,7 +32,6 @@ def extract_hand_mask(bgr):
     hand_ids = np.unique(seed_labels)
     hand_mask = np.isin(labels, hand_ids).astype(np.uint8) * 255
 
-    # 太さを戻す（必要なら）
     hand_mask = cv2.dilate(hand_mask, np.ones((3,3),np.uint8), iterations=1)
     return hand_mask
 
