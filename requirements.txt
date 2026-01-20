@@ -1,0 +1,38 @@
+# Senior Thesis - Clock Reading with DeepProbLog
+# Deep Learning + Logic Programming for Analog Clock Recognition
+# Python 3.11+
+
+# Core Deep Learning Framework
+torch>=2.0.0,<3.0.0
+torchvision>=0.15.0,<1.0.0
+torchaudio>=2.0.0,<3.0.0  # Optional, if audio processing is needed
+
+# Probabilistic Logic Programming
+deepproblog>=0.1.0
+problog>=2.2.0
+
+# Data Processing & Scientific Computing
+pandas>=1.5.0,<2.0.0
+numpy>=1.23.0,<2.0.0
+scipy>=1.9.0,<2.0.0
+
+# Image Processing
+Pillow>=9.0.0,<10.0.0
+opencv-python>=4.6.0,<5.0.0
+scikit-image>=0.19.0,<1.0.0
+
+# Machine Learning Utilities
+scikit-learn>=1.1.0,<2.0.0
+matplotlib>=3.5.0,<4.0.0
+seaborn>=0.12.0,<1.0.0
+
+# Utilities
+tqdm>=4.64.0,<5.0.0
+pyyaml>=6.0,<7.0.0
+
+# Development & Testing (Optional)
+# pytest>=7.0.0,<8.0.0
+# jupyter>=1.0.0,<2.0.0
+# ipython>=8.0.0,<9.0.0
+# black>=22.0.0,<23.0.0
+# flake8>=4.0.0,<5.0.0
