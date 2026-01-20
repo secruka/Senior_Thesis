@@ -17,7 +17,7 @@ from torchvision import transforms, models
 # =========================
 # Config (EDIT HERE ONLY)
 # =========================
-DATA_ROOT = Path("/Users/ruka/Senior_Thesis/clock_kaggle")   # contains train/ valid/ test/ and clocks.csv
+DATA_ROOT = Path("clock_kaggle")   # contains train/ valid/ test/ and clocks.csv
 CSV_PATH  = DATA_ROOT / "clocks.csv"
 
 MODEL = "resnet18"   # "resnet18" or "small"
@@ -259,3 +259,35 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+# device: cuda
+# Epoch 01 | train loss 2.4476 acc 0.5214 | valid loss 0.3924 acc 0.9403
+# Epoch 02 | train loss 0.5385 acc 0.8965 | valid loss 0.0979 acc 0.9875
+# Epoch 03 | train loss 0.3815 acc 0.9170 | valid loss 0.0919 acc 0.9847
+# Epoch 04 | train loss 0.3309 acc 0.9273 | valid loss 0.0383 acc 0.9979
+# Epoch 05 | train loss 0.3222 acc 0.9260 | valid loss 0.0396 acc 0.9903
+# Epoch 06 | train loss 0.2744 acc 0.9355 | valid loss 0.0356 acc 0.9924
+# Epoch 07 | train loss 0.2461 acc 0.9415 | valid loss 0.0272 acc 0.9965
+# Epoch 08 | train loss 0.2677 acc 0.9350 | valid loss 0.0451 acc 0.9882
+# Epoch 09 | train loss 0.2447 acc 0.9402 | valid loss 0.0277 acc 0.9951
+# Epoch 10 | train loss 0.2401 acc 0.9423 | valid loss 0.0227 acc 0.9951
+# Epoch 11 | train loss 0.2388 acc 0.9420 | valid loss 0.0274 acc 0.9944
+# Epoch 12 | train loss 0.2240 acc 0.9451 | valid loss 0.0256 acc 0.9972
+# Epoch 13 | train loss 0.2244 acc 0.9436 | valid loss 0.0216 acc 0.9965
+# Epoch 14 | train loss 0.2027 acc 0.9492 | valid loss 0.0129 acc 0.9986
+# Epoch 15 | train loss 0.1918 acc 0.9514 | valid loss 0.0160 acc 0.9972
+# Epoch 16 | train loss 0.1952 acc 0.9493 | valid loss 0.0118 acc 0.9986
+# Epoch 17 | train loss 0.1849 acc 0.9517 | valid loss 0.0174 acc 0.9979
+# Epoch 18 | train loss 0.1827 acc 0.9523 | valid loss 0.0280 acc 0.9958
+# Epoch 19 | train loss 0.1925 acc 0.9493 | valid loss 0.0240 acc 0.9958
+# Epoch 20 | train loss 0.1764 acc 0.9544 | valid loss 0.0168 acc 0.9986
+# best valid acc: 0.9986111111111111
+# TEST | loss 0.0149 acc 0.9986
+
+# Demo: clock_kaggle\train\1-00\0.jpg
+#   class   0  prob 0.998  label 1_00  time 1:00
+#   class 141  prob 0.001  label 9_45  time 9:45
+#   class  75  prob 0.001  label 4_15  time 4:15
+#   class  47  prob 0.000  label 12_55  time 12:55
+#   class  37  prob 0.000  label 12_05  time 12:05
