@@ -35,18 +35,21 @@ class ClockNet(nn.Module):
 class DeepProbLogDataset(Dataset):
     def __init__(self, pytorch_dataset):
         self.dataset = pytorch_dataset
+        self._query_cache = {}  # Lazy-load queries to avoid memory overflow
 
     def to_query(self, i):
-        img, h, m = self.dataset[i]
-        
-        # クエリ: time(X, h, m).
-        q_term = Term('time', Var('X'), Constant(h), Constant(m))
-        
-        # 「変数 X の中身は 画像データ(tensor) です」という辞書
-        substitution = {Var('X'): Constant(img)}
-        
-        #クエリと置換辞書をセットにして返す
-        return Query(q_term, substitution)
+        if i not in self._query_cache:
+            img, h, m = self.dataset[i]
+            
+            # クエリ: time(X, h, m).
+            q_term = Term('time', Var('X'), Constant(h), Constant(m))
+            
+            # 「変数 X の中身は 画像データ(tensor) です」という辞書
+            substitution = {Var('X'): Constant(img)}
+            
+            #クエリと置換辞書をセットにして返す
+            self._query_cache[i] = Query(q_term, substitution)
+        return self._query_cache[i]
 
     def __len__(self):
         return len(self.dataset)
@@ -79,18 +82,20 @@ def main():
     ])
 
     data_path = "clock_kaggle/"  
-    csv_path  = "labels_points.csv"
+    csv_name  = "labels_points.csv"
 
-    pt_train = ClockDataset(data_path, subset="train", csv_path=csv_path, transform=transform)
-    pt_test  = ClockDataset(data_path, subset="test",  csv_path=csv_path, transform=transform)
+    # Limit dataset size to avoid memory issues
+    pt_train = ClockDataset(data_path, subset="train", csv_name=csv_name, transform=transform, max_samples=1000)
+    pt_test  = ClockDataset(data_path, subset="test",  csv_name=csv_name, transform=transform, max_samples=500)
 
     # DeepProbLog用にラップする
     train_dataset = DeepProbLogDataset(pt_train)
+
     test_dataset  = DeepProbLogDataset(pt_test)
 
-    # DataLoader作成
-    train_loader = DataLoader(train_dataset, batch_size=16)
-    test_loader  = DataLoader(test_dataset, batch_size=16)
+    # DataLoader作成 - reduced batch size from 16 to 4
+    train_loader = DataLoader(train_dataset, batch_size=4)
+    test_loader  = DataLoader(test_dataset, batch_size=4)
 
     print(f"Start training with {len(train_dataset)} examples...")
     if len(train_loader) == 0:

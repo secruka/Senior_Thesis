@@ -13,27 +13,33 @@ from problog.logic import Term, Constant, Var
 
 
 class ClockDataset(Dataset):
-    def __init__(self, root_dir, subset='train', transform=None, csv_name="labels_points.csv"):
+    def __init__(self, root_dir, subset='train', transform=None, csv_name="labels_points.csv", max_samples=None):
         """
         Args:
             root_dir (str): データセットのルートディレクトリ (例: "clock_kaggle/")
             subset (str): 'train', 'test', 'valid' のいずれか
             transform (callable, optional): 画像の前処理
             csv_name (str): 使うCSVファイル名（デフォルト: labels_points.csv）
+            max_samples (int, optional): 最大サンプル数制限（Noneで無制限）
         """
         self.root_dir = Path(root_dir)
         self.subset = subset
         self.transform = transform
 
-        # CSVパス（root_dir 直下にある想定）
+        # CSVパス（root_dir 直下にある想定、またはroot_dir の親）
         csv_path = self.root_dir / csv_name
         if not csv_path.exists():
-            # よくある代替名にも一応対応（必要なければ消してOK）
-            alt = self.root_dir / "clocks.csv"
-            if alt.exists():
-                csv_path = alt
+            # root_dir の親を確認
+            parent_csv = self.root_dir.parent / csv_name
+            if parent_csv.exists():
+                csv_path = parent_csv
             else:
-                raise FileNotFoundError(f"CSV not found: {self.root_dir / csv_name} (or clocks.csv)")
+                # よくある代替名にも一応対応（必要なければ消してOK）
+                alt = self.root_dir / "clocks.csv"
+                if alt.exists():
+                    csv_path = alt
+                else:
+                    raise FileNotFoundError(f"CSV not found: {self.root_dir / csv_name} or {parent_csv} (or {alt})")
 
         df = pd.read_csv(csv_path)
 
@@ -78,6 +84,10 @@ class ClockDataset(Dataset):
             img_paths.append(p)
             hours.append(h)
             minute_idxs.append(m_idx)
+            
+            # Limit samples if specified
+            if max_samples is not None and len(img_paths) >= max_samples:
+                break
 
         self.images = img_paths
         self.labels = list(zip(hours, minute_idxs))

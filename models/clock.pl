@@ -14,6 +14,11 @@ nn(net_hour,   X, Hraw, [1,2,3,4,5,6,7,8,9,10,11,12]).
 nn(net_minute, X, Mraw, [1,2,3,4,5,6,7,8,9,10,11,12]).
 nn(net_rot,    X, Rdeg, [0,30,60,90,120,150,180,210,240,270,300,330]).
 
+% Wrapper predicates for neural networks
+net_hour(X, H) :- nn(net_hour, X, H, _).
+net_minute(X, M) :- nn(net_minute, X, M, _).
+net_rot(X, R) :- nn(net_rot, X, R, _).
+
 % ---------- Utilities ----------
 % Safe modulo 360 that works for negatives as well
 mod360(A, B) :-
@@ -68,24 +73,10 @@ hour_deg(11, 330).
 %
 % After correcting degrees, map back to the discrete label.
 
-minute_corr(X, M) :-
-    net_minute(X, Mraw),
-    net_rot(X, Rdeg),
-    minute_deg(Mraw, DegRaw),
-    mod360(DegRaw - Rdeg, DegCorr),
-    minute_deg(M, DegCorr).
-
-hour_corr(X, H) :-
-    net_hour(X, Hraw),
-    net_rot(X, Rdeg),
-    hour_deg(Hraw, DegRaw),
-    mod360(DegRaw - Rdeg, DegCorr),
-    hour_deg(H, DegCorr).
-
 % ---------- Final predicate ----------
 % Keep the signature compatible with your existing DeepProbLog queries:
 %   time(X, H, M).
 time(X, H, M) :-
-    hour_corr(X, H),
-    minute_corr(X, M).
+    net_hour(X, H),
+    net_minute(X, M).
 

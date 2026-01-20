@@ -18,9 +18,6 @@ from deepproblog.query import Query
 from problog.logic import Term, Constant, Var
 
 
-# =========================
-# 設定（ここだけ触ればOK）
-# =========================
 @dataclass
 class CFG:
     # clock_kaggle のルート（labels_points.csv と train/ がある場所）
@@ -45,12 +42,14 @@ class CFG:
 
     # train
     epochs: int = 10
-    batch_size: int = 16
+    batch_size: int = 4  # Reduced from 16 to avoid SDD memory overflow
     lr: float = 1e-4
+    
+    # Limit dataset size for memory efficiency (set to None to use full dataset)
+    max_train_samples: int | None = 1000  # Reduced from full 11520
+    max_test_samples: int | None = 500    # Reduced from full 1440
 
 CFG = CFG()
-# =========================
-
 
 def norm360(deg: float) -> float:
     return (deg % 360.0 + 360.0) % 360.0
@@ -79,13 +78,13 @@ class DialRotationDatasetCSV(TorchDataset):
     """
     def __init__(self, root_dir: str, subset: str, csv_name: str,
                  angle_col: str, only_ok: bool, img_base_dir: str | None,
-                 transform=None, bin_size_deg: int = 30):
+                 transform=None, bin_size_deg: int = 30, max_samples: int | None = None):
         self.root_dir = root_dir
         self.subset = subset
         self.transform = transform
         self.bin_size_deg = bin_size_deg
 
-        csv_path = os.path.join(root_dir, csv_name)
+        csv_path = os.path.join(csv_name)
         if not os.path.exists(csv_path):
             raise FileNotFoundError(f"CSV not found: {csv_path}")
 
@@ -124,6 +123,10 @@ class DialRotationDatasetCSV(TorchDataset):
             deg = float(r[angle_col])
             rot_label = deg_to_label_12bin(deg, bin_size=bin_size_deg)  # 0..330
             self.samples.append((img_path, int(rot_label)))
+            
+            # Limit samples if specified
+            if max_samples is not None and len(self.samples) >= max_samples:
+                break
 
         if len(self.samples) == 0:
             raise RuntimeError(
@@ -148,19 +151,23 @@ class DialRotationDatasetCSV(TorchDataset):
 class DeepProbLogDialDataset(DPBDataset):
     """
     rot(X, R). を返す
-    X は substitution で画像テンソルを渡す（hands側と同じ方式）
+    X は substitution で画像テンソルを渡すhands側と同じ
+    Lazy-loads queries to avoid memory issues with large datasets
     """
     def __init__(self, pytorch_dataset):
         self.dataset = pytorch_dataset
+        self._query_cache = {}
 
     def __len__(self):
         return len(self.dataset)
 
     def to_query(self, i):
-        img, rot_label = self.dataset[i]
-        q_term = Term("rot", Var("X"), Constant(int(rot_label)))
-        substitution = {Var("X"): Constant(img)}
-        return Query(q_term, substitution)
+        if i not in self._query_cache:
+            img, rot_label = self.dataset[i]
+            q_term = Term("rot", Var("X"), Constant(int(rot_label)))
+            substitution = {Var("X"): Constant(img)}
+            self._query_cache[i] = Query(q_term, substitution)
+        return self._query_cache[i]
 
 
 class DialNet(nn.Module):
@@ -189,8 +196,8 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("device:", device)
 
-    # 角度列の自動決定
-    df0 = pd.read_csv(os.path.join(CFG.root_dir, CFG.csv_name))
+    # 角度 列の自動決定
+    df0 = pd.read_csv(os.path.join(CFG.csv_name))
     angle_col = pick_angle_col(df0, CFG.angle_col_candidates)
     print("using angle column:", angle_col)
     print("labels:", list(CFG.labels_deg))
@@ -213,6 +220,7 @@ def main():
         img_base_dir=CFG.img_base_dir,
         transform=tfm,
         bin_size_deg=CFG.bin_size_deg,
+        max_samples=CFG.max_train_samples,
     )
     pt_test = DialRotationDatasetCSV(
         root_dir=CFG.root_dir,
@@ -223,6 +231,7 @@ def main():
         img_base_dir=CFG.img_base_dir,
         transform=tfm,
         bin_size_deg=CFG.bin_size_deg,
+        max_samples=CFG.max_test_samples,
     )
 
     # DeepProbLog dataset + loader
@@ -254,7 +263,7 @@ def main():
     os.makedirs("dialnet_ckpt", exist_ok=True)
     torch.save(cnn_rot.state_dict(), "dialnet_ckpt/rot_model.pth")
     print("Saved: dialnet_ckpt/rot_model.pth")
-    # # 追加：rot用モデル
+    # 追加：rot用モデル
     # cnn_rot = ClockNet(num_classes=12).to(device)
     # cnn_rot.load_state_dict(torch.load("dialnet_ckpt/rot_model.pth", map_location=device))
 
