@@ -41,11 +41,11 @@ from deepproblog.query import Query
 # =========================
 # ここを自分の環境に合わせて編集
 # =========================
-ROOT_DIR = "/Users/ruka/Senior_Thesis/clock_kaggle"  # 画像パスのroot（file列が train/... のように相対ならここをrootに）
-CSV_PATH = "/Users/ruka/Senior_Thesis/clock_kaggle/dial_keypoints.csv"  # 12時キーポイント付きCSV
+ROOT_DIR = "clock_kaggle"  # 画像パスのroot（file列が train/... のように相対ならここをrootに）
+CSV_PATH = "clock_kaggle/dial_keypoints.csv"  # 12時キーポイント付きCSV
 
 # DeepProbLog 側の Prolog ファイル（あなたの構成に合わせて）
-PROLOG_FILE = "dial.pl"  # 例: "clock_integrated.pl" などでもOK（dial/2 を含む前提）
+PROLOG_FILE = "models/dial.pl"  # 例: "clock_integrated.pl" などでもOK（dial/2 を含む前提）
 
 # 学習ハイパーパラメータ（必要なら調整）
 EPOCHS = 10
@@ -206,8 +206,11 @@ def main():
     net_dial = Network(cnn_dial, "net_dial", batching=True)
 
     # DeepProbLog model
-    engine = ExactEngine(device=device)
-    model = Model(PROLOG_FILE, [net_dial], engine)
+    model = Model(PROLOG_FILE, [net_dial])
+    model.set_engine(ExactEngine(model))
+    
+    # Set optimizer on the network
+    net_dial.optimizer = torch.optim.Adam(cnn_dial.parameters(), lr=LR)
 
     # Transforms（必要最小限）
     transform = transforms.Compose(
@@ -233,16 +236,12 @@ def main():
     valid_loader = DataLoader(valid_data, batch_size=BATCH_SIZE, shuffle=False)
     test_loader  = DataLoader(test_data,  batch_size=BATCH_SIZE, shuffle=False)
 
-    # Optimizer
-    optimizer = torch.optim.Adam(cnn_dial.parameters(), lr=LR)
-
     # Train
     print("Start training...")
     train_model(
         model,
         train_loader,
         EPOCHS,
-        optimizer=optimizer,
         test_iter=valid_loader,
         log_iter=100,
     )

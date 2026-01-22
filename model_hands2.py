@@ -237,7 +237,7 @@ def main():
 
     # データ設定
     data_path = "clock_kaggle"  # 例: clock_kaggle/train/... が存在する想定
-    csv_name = "rotation.csv"   # ここを rotations.csv 等に合わせて変更
+    csv_name = "rotations.csv"   # ここを rotations.csv 等に合わせて変更
     csv_path = os.path.join(data_path, csv_name)
 
     # Dataset（必要なら max_samples を外してフルで学習）
