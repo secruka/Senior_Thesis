@@ -528,3 +528,11 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+# python train_clock_integrated.py \
+#   --data_root /Users/ruka/Senior_Thesis/clock_kaggle \
+#   --csv rotation.csv \
+#   --run pretrain_and_finetune \
+#   --epochs 10 \
+#   --batch_size 8
