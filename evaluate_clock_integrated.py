@@ -116,6 +116,24 @@ class RowLabels:
     m_img_cls: int
 
 
+def collate_fn_rowlabels(batch):
+    """Custom collate function for batches containing RowLabels dataclass."""
+    imgs = []
+    labels_list = []
+    rel_paths = []
+    
+    for img, labels, rel_path in batch:
+        imgs.append(img)
+        labels_list.append(labels)
+        rel_paths.append(rel_path)
+    
+    # Stack images into a batch tensor
+    imgs = torch.stack(imgs)
+    
+    # Convert labels dataclass to a list of dataclasses (keep as-is for unpacking later)
+    return imgs, labels_list, rel_paths
+
+
 class RotationCsvTorchDataset(torch.utils.data.Dataset):
     def __init__(
         self,
@@ -370,6 +388,7 @@ def main():
         shuffle=False,
         num_workers=args.num_workers,
         pin_memory=torch.cuda.is_available(),
+        collate_fn=collate_fn_rowlabels,
     )
 
     # load nets
@@ -408,15 +427,15 @@ def main():
 
     printed = 0
 
-    for imgs, labels, rel_paths in loader:
+    for imgs, labels_list, rel_paths in loader:
         imgs = imgs.to(device)
 
-        # gt tensors
-        hour_gt = torch.tensor([lab.hour_time for lab in labels], device=device, dtype=torch.long)
-        min_gt = torch.tensor([lab.minute_time for lab in labels], device=device, dtype=torch.long)
-        rot_gt = torch.tensor([lab.rot_cls for lab in labels], device=device, dtype=torch.long)
-        himg_gt = torch.tensor([lab.h_img_cls for lab in labels], device=device, dtype=torch.long)
-        mimg_gt = torch.tensor([lab.m_img_cls for lab in labels], device=device, dtype=torch.long)
+        # gt tensors - unpack from labels_list
+        hour_gt = torch.tensor([lab.hour_time for lab in labels_list], device=device, dtype=torch.long)
+        min_gt = torch.tensor([lab.minute_time for lab in labels_list], device=device, dtype=torch.long)
+        rot_gt = torch.tensor([lab.rot_cls for lab in labels_list], device=device, dtype=torch.long)
+        himg_gt = torch.tensor([lab.h_img_cls for lab in labels_list], device=device, dtype=torch.long)
+        mimg_gt = torch.tensor([lab.m_img_cls for lab in labels_list], device=device, dtype=torch.long)
 
         p_dial = net_dial(imgs)   # [B,4]
         p_hour = net_hour(imgs)   # [B,12]
@@ -475,3 +494,22 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+#  python evaluate_clock_integrated.py --data_root clock_kaggle --csv rotations.csv --weights_dir weights --tag after_time --subset train --max_samples 100
+# Using device: cuda
+# [0] train/1-00/1.jpg | GT=1:00 | Pred=12:00 | top5=12:00, 3:15, 8:45, 1:00, 2:00
+# [1] train/1-00/12.jpg | GT=1:00 | Pred=3:15 | top5=3:15, 8:45, 4:15, 5:30, 5:15
+# [2] train/1-00/13.jpg | GT=1:00 | Pred=8:45 | top5=8:45, 3:15, 12:00, 9:45, 10:45
+# [3] train/1-00/15.jpg | GT=1:00 | Pred=2:00 | top5=2:00, 9:00, 11:00, 12:00, 4:00
+# [4] train/1-00/16.jpg | GT=1:00 | Pred=9:00 | top5=9:00, 2:00, 11:00, 8:00, 3:00
+
+# === Results ===
+# N = 100
+# dial acc        : 68.00%
+# hour_img acc    : 0.00%
+# minute_img acc  : 63.00%
+# --- integrated time ---
+# time (exact) acc: 0.00%
+# hour acc        : 4.00%
+# minute acc      : 41.00%
+# top-3 time acc  : 0.00%
