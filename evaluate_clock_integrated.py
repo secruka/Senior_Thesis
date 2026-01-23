@@ -428,13 +428,6 @@ def main():
     printed = 0
 
     for imgs, labels_list, rel_paths in loader:
-        if printed < 5:
-            for j in range(min(5, imgs.shape[0])):
-                print("DBG", rel_paths[j],
-                "himg_gt", int(himg_gt[j]),
-                "himg_pred", int(himg_pred[j]),
-                "mimg_gt", int(mimg_gt[j]),
-                "mimg_pred", int(mimg_pred[j]))
         imgs = imgs.to(device)
 
         # gt tensors - unpack from labels_list
@@ -451,6 +444,14 @@ def main():
         dial_pred = torch.argmax(p_dial, dim=1)
         himg_pred = torch.argmax(p_hour, dim=1)
         mimg_pred = torch.argmax(p_min, dim=1)
+        
+        if printed < 5:
+            for j in range(min(5, imgs.shape[0])):
+                print("DBG", rel_paths[j],
+                "himg_gt", int(himg_gt[j]),
+                "himg_pred", int(himg_pred[j]),
+                "mimg_gt", int(mimg_gt[j]),
+                "mimg_pred", int(mimg_pred[j]))
 
         dial_ok += int((dial_pred == rot_gt).sum().item())
         hourimg_ok += int((himg_pred == himg_gt).sum().item())
