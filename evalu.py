@@ -226,3 +226,13 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# PS C:\Users\311\Downloads\Senior_Thesis> python evalu.py --data_root clock_kaggle --csv rotations.csv --split test --dial_pth weights/dial_after_dial.pth
+# [DIAL] split=test  acc=0.6165  (random=0.25)
+# [DIAL] confusion matrix (true row, pred col):
+# [[363  11 124  22]
+#  [ 26  92  14  21]
+#  [ 42   3 146   0]
+#  [ 90  17  40  58]]
+# PS C:\Users\311\Downloads\Senior_Thesis> python evalu.py --data_root clock_kaggle --csv rotations.csv --split test --hour_pth weights/hour_after_hands.pth --minute_pth weights/minute_after_hands.pth
+# [HANDS] split=test  hour_acc=0.2619  minute_acc=0.5706  joint=0.1646  (random=0.0833)
