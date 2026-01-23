@@ -162,7 +162,9 @@ class RotationCsvTorchDataset(torch.utils.data.Dataset):
 
         # status == ok
         df = df[df["status"].astype(str).str.lower().eq("ok")].copy()
-
+        # hour座標が欠損（-1など）を落とす（hands/time用途）
+        df = df[(df["hour_x"] >= 0) & (df["hour_y"] >= 0)].copy()
+        df = df[(df["minute_x"] >= 0) & (df["minute_y"] >= 0)].copy()
         # subset
         prefix = self.subset + "/"
         df = df[df["file"].astype(str).str.startswith(prefix)].copy()

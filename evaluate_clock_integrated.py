@@ -409,6 +409,13 @@ def main():
     printed = 0
 
     for imgs, labels, rel_paths in loader:
+        if printed < 5:
+            for j in range(min(5, imgs.shape[0])):
+                print("DBG", rel_paths[j],
+                "himg_gt", int(himg_gt[j]),
+                "himg_pred", int(himg_pred[j]),
+                "mimg_gt", int(mimg_gt[j]),
+                "mimg_pred", int(mimg_pred[j]))
         imgs = imgs.to(device)
 
         # gt tensors
