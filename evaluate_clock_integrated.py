@@ -68,11 +68,11 @@ def angle_cls_12(hand_x: float, hand_y: float, cx: float, cy: float) -> int:
 
 def hour_to_idx(hour: int) -> int:
     # 12 -> 0, 1..11 -> 1..11
-    return 0 if int(hour) == 12 else int(hour)
+    return int(hour) 
 
 
 def idx_to_hour(idx: int) -> int:
-    return 12 if int(idx) == 0 else int(idx)
+    return int(idx)
 
 
 def correct_idx(image_idx: int, steps: int) -> int:
@@ -337,7 +337,7 @@ def topk_time_hits(time_meta: torch.Tensor, time_prob: torch.Tensor, hour_gt: to
 def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--data_root", type=str, required=True)
-    p.add_argument("--csv", type=str, default="rotation.csv")
+    p.add_argument("--csv", type=str, default="rotations.csv")
     p.add_argument("--subset", type=str, default="test", choices=["train", "valid", "test"])
     p.add_argument("--weights_dir", type=str, default="weights")
     p.add_argument("--tag", type=str, default="after_time", help="dial_{tag}.pth の tag")

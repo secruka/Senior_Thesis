@@ -395,7 +395,7 @@ def parse_args():
     p = argparse.ArgumentParser()
 
     p.add_argument("--data_root", type=str, required=True, help="例: /Users/ruka/Senior_Thesis/clock_kaggle")
-    p.add_argument("--csv", type=str, default="rotation.csv", help="data_root配下のCSV名 or 絶対パス")
+    p.add_argument("--csv", type=str, default="rotations.csv", help="data_root配下のCSV名 or 絶対パス")
 
     p.add_argument("--prolog", type=str, default="models/clock_integrated.pl")
 
@@ -468,7 +468,7 @@ def main():
     )
 
     if len(train_torch) == 0:
-        raise RuntimeError("No training rows after filtering. Check your rotation.csv and subset paths.")
+        raise RuntimeError("No training rows after filtering. Check your rotations.csv and subset paths.")
 
     os.makedirs(args.save_dir, exist_ok=True)
 
