@@ -63,7 +63,9 @@ def seed_everything(seed: int = 0):
 
 def rotation_deg_to_cls(rotation_deg: float) -> int:
     """rotation_deg（0/90/180/270） -> rot_cls（0..3）"""
+    #360で割った時のあまり
     d = int(round(float(rotation_deg))) % 360
+    #0123に変換
     return (d // 90) % 4
 
 
@@ -85,7 +87,7 @@ def angle_cls_12(hand_x: float, hand_y: float, cx: float, cy: float) -> int:
 # ------------------------------
 
 class ResNetClassifier(nn.Module):
-    """ResNet18 -> Softmax。DeepProbLog は確率を期待することが多いので Softmax を含める。"""
+    """ResNet18 -> DeepProbLog は確率を期待することが多いので Softmax を使う。"""
 
     def __init__(self, num_classes: int):
         super().__init__()
@@ -123,6 +125,7 @@ class RotationCsvTorchDataset(torch.utils.data.Dataset):
 
     必須列:
       file,time_h,time_m,rotation_deg,status,cx,cy,minute_x,minute_y,hour_x,hour_y
+      file,time_h,time_m,cx,cy,minute_x,minute_y,hour_x,hour_y,rotation_deg,status
     """
 
     def __init__(
@@ -188,15 +191,17 @@ class RotationCsvTorchDataset(torch.utils.data.Dataset):
         # time filters (minute should be 0..55 step5; hour 1..12)
         df = df[(df["time_h"] >= 1) & (df["time_h"] <= 12)].copy()
         df = df[(df["time_m"] >= 0) & (df["time_m"] <= 59)].copy()
+        #全て5で割り切れるからここに問題はないはず
         df = df[df["time_m"] % 5 == 0].copy()
         df = df.reset_index(drop=True)
-
+        # argで自分で決めれれるから。
         if max_samples is not None:
             df = df.iloc[: int(max_samples)].reset_index(drop=True)
 
         self.df = df
 
     @staticmethod
+    #このデコレータを使用すると、インスタンスやクラス自体を引数として受け取らないメソッドを定義できます
     def _normalize_subset(subset: str) -> str:
         s = (subset or "train").strip().lower()
         if s in {"val", "valid", "vaild", "validation"}:
@@ -209,14 +214,19 @@ class RotationCsvTorchDataset(torch.utils.data.Dataset):
         return len(self.df)
 
     def _get_labels(self, row) -> RowLabels:
+        #1-12
         hour_time = int(row["time_h"])
+        #0-55
         minute_time = int(row["time_m"])
+        #0 1 2 3に変換
         rot_cls = rotation_deg_to_cls(row["rotation_deg"])
 
+        #撮ってきてるだけ
         cx, cy = float(row["cx"]), float(row["cy"])
         mx, my = float(row["minute_x"]), float(row["minute_y"])
         hx, hy = float(row["hour_x"]), float(row["hour_y"])
 
+        #clsとはクラス、30度刻みの0-11
         m_img_cls = angle_cls_12(mx, my, cx, cy)
         h_img_cls = angle_cls_12(hx, hy, cx, cy)
 
@@ -227,14 +237,14 @@ class RotationCsvTorchDataset(torch.utils.data.Dataset):
             h_img_cls=h_img_cls,
             m_img_cls=m_img_cls,
         )
-
+    #ここは何？なぜrgb,ラベリングしている
     def __getitem__(self, idx: int):
         row = self.df.iloc[idx]
         rel_path = str(row["file"])
         img_path = os.path.join(self.data_root, rel_path)
         if not os.path.exists(img_path):
             raise FileNotFoundError(f"Image not found: {img_path}")
-
+        #RGBモードの変換
         img = Image.open(img_path).convert("RGB")
         if self.transform is not None:
             img = self.transform(img)
