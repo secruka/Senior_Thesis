@@ -397,7 +397,7 @@ def parse_args():
     p = argparse.ArgumentParser()
 
     p.add_argument("--data_root", type=str, required=True, help="例: /Users/ruka/Senior_Thesis/clock_kaggle")
-    p.add_argument("--csv", type=str, default="rotation.csv", help="data_root配下のCSV名 or 絶対パス")
+    p.add_argument("--csv", type=str, default="rotations.csv", help="data_root配下のCSV名 or 絶対パス")
 
     p.add_argument("--prolog", type=str, default="models/clock_integrated.pl")
 
@@ -470,7 +470,7 @@ def main():
     )
 
     if len(train_torch) == 0:
-        raise RuntimeError("No training rows after filtering. Check your rotation.csv and subset paths.")
+        raise RuntimeError("No training rows after filtering. Check your rotations.csv and subset paths.")
 
     os.makedirs(args.save_dir, exist_ok=True)
 
@@ -531,11 +531,7 @@ def main():
 if __name__ == "__main__":
     main()
 
-
-#python train_clock_integrated.py --data_root clock_kaggle --csv rotations.csv --run pretrain_and_finetune --epochs 10 --batch_size 8        
-
-
-# C:\Users\311\Downloads\Senior_Thesis> python train_clock_integrated.py --data_root clock_kaggle --csv rotations.csv --run pretrain_and_finetune --epochs 10 --batch_size 8
+#  C:\Users\311\Downloads\Senior_Thesis> python train_clock_integrated.py --data_root clock_kaggle --csv rotations.csv --run pretrain_and_finetune --epochs 10 --batch_size 8
 # C:\Users\311\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\deepproblog\engines\__init__.py:6: UserWarning: ApproximateEngine is not available as PySwip could not be found
 #   warnings.warn("ApproximateEngine is not available as PySwip could not be found")
 # Using device: cuda
@@ -814,5 +810,101 @@ if __name__ == "__main__":
 # Epoch time:  3626.1432621479034
 # Epoch 3
 # Iteration:  2100        s:349.9362      Average Loss:  0.009856183149095159
-
-
+# Iteration:  2200        s:355.3077      Average Loss:  0.004472080919367727
+# Iteration:  2300        s:352.5677      Average Loss:  0.0035493205761304124
+# Iteration:  2400        s:349.0355      Average Loss:  0.0034703025706403425
+# Iteration:  2500        s:348.7423      Average Loss:  0.003303652369941119
+# Iteration:  2600        s:347.9722      Average Loss:  0.0031298688871902415
+# Iteration:  2700        s:349.0808      Average Loss:  0.0030500965083774647
+# Iteration:  2800        s:348.4849      Average Loss:  0.0027635383773304055
+# Iteration:  2900        s:348.9476      Average Loss:  0.002648705122701358
+# Iteration:  3000        s:348.6844      Average Loss:  0.002569105609727558
+# Epoch time:  3604.5758402347565
+# Epoch 4
+# Iteration:  3100        s:346.7814      Average Loss:  0.0024967211920011324
+# Iteration:  3200        s:348.2974      Average Loss:  0.0023357973038218914
+# Iteration:  3300        s:348.5419      Average Loss:  0.002252865462069167
+# Iteration:  3400        s:348.6318      Average Loss:  0.002168291104317177
+# Iteration:  3500        s:348.2490      Average Loss:  0.0021121669880812986
+# Iteration:  3600        s:348.6830      Average Loss:  0.002051498483051546
+# Iteration:  3700        s:348.2561      Average Loss:  0.001945770917373011
+# Iteration:  3800        s:348.4177      Average Loss:  0.00643201755505288
+# Iteration:  3900        s:348.8788      Average Loss:  0.0022540697726071814
+# Iteration:  4000        s:348.7143      Average Loss:  0.0019447741734620648
+# Iteration:  4100        s:348.6110      Average Loss:  0.001844743105393718
+# Epoch time:  3590.791677236557
+# Epoch 5
+# Iteration:  4200        s:345.8458      Average Loss:  0.001701224313583225
+# Iteration:  4300        s:348.0162      Average Loss:  0.0016233672339876649
+# Iteration:  4400        s:348.1520      Average Loss:  0.0015370664140209557
+# Iteration:  4500        s:347.6684      Average Loss:  0.0014855579419236166
+# Iteration:  4600        s:347.8654      Average Loss:  0.0014199738637398695
+# Iteration:  4700        s:347.7374      Average Loss:  0.0013738537619792624
+# Iteration:  4800        s:347.8704      Average Loss:  0.001332448764514993
+# Iteration:  4900        s:347.6364      Average Loss:  0.001737416452524485
+# Iteration:  5000        s:347.3850      Average Loss:  0.0012820917186763836
+# Iteration:  5100        s:346.8881      Average Loss:  0.00122547155173379
+# Epoch time:  3583.202639579773
+# Epoch 6
+# Iteration:  5200        s:344.7633      Average Loss:  0.0011431989996344783
+# Iteration:  5300        s:346.7987      Average Loss:  0.0011021399530727648
+# Iteration:  5400        s:345.7845      Average Loss:  0.0010363544643769273
+# Iteration:  5500        s:345.5341      Average Loss:  0.0010136116281501018
+# Iteration:  5600        s:345.0430      Average Loss:  0.0009733331697498216
+# Iteration:  5700        s:344.1793      Average Loss:  0.0010031605663243682
+# Iteration:  5800        s:343.6069      Average Loss:  0.0009057579645013902
+# Iteration:  5900        s:342.2629      Average Loss:  0.0008676505383482436
+# Iteration:  6000        s:341.6715      Average Loss:  0.0008156091403361643
+# Iteration:  6100        s:339.8902      Average Loss:  0.0007811545806907815
+# Epoch time:  3539.0761411190033
+# Epoch 7
+# Iteration:  6200        s:336.1983      Average Loss:  0.0007628476843092358
+# Iteration:  6300        s:337.4323      Average Loss:  0.0007292326282185968
+# Iteration:  6400        s:335.4365      Average Loss:  0.0006926018311060034
+# Iteration:  6500        s:333.3118      Average Loss:  0.0006806328336097067
+# Iteration:  6600        s:331.5706      Average Loss:  0.0006439435324136866
+# Iteration:  6700        s:329.6767      Average Loss:  0.0006497190014488297
+# Iteration:  6800        s:327.9561      Average Loss:  0.0005983418951291242
+# Iteration:  6900        s:325.4037      Average Loss:  0.0005718645761589869
+# Iteration:  7000        s:324.5369      Average Loss:  0.0005515804691822268
+# Iteration:  7100        s:321.7934      Average Loss:  0.0005303594864744809
+# Iteration:  7200        s:319.6823      Average Loss:  0.0005108326172558009
+# Epoch time:  3386.2826569080353
+# Epoch 8
+# Iteration:  7300        s:315.6616      Average Loss:  0.00048349942870117956
+# Iteration:  7400        s:315.3188      Average Loss:  0.0004631983283979935
+# Iteration:  7500        s:312.1564      Average Loss:  0.00044063967896363466
+# Iteration:  7600        s:309.4441      Average Loss:  0.0004470223574026022
+# Iteration:  7700        s:307.4036      Average Loss:  0.00041014176727912857
+# Iteration:  7800        s:305.2908      Average Loss:  0.0003901100756411324
+# Iteration:  7900        s:302.6646      Average Loss:  0.0003694683554567746
+# Iteration:  8000        s:301.4695      Average Loss:  0.0003584142443287419
+# Iteration:  8100        s:298.9255      Average Loss:  0.00034274702176844584
+# Epoch time:  3153.8426010608673
+# Epoch 9
+# Iteration:  8300        s:295.0778      Average Loss:  0.00031322729664680083
+# Iteration:  8400        s:295.3270      Average Loss:  0.0002968179134040838
+# Iteration:  8500        s:297.5594      Average Loss:  0.0002835293164025643
+# Iteration:  8600        s:295.1675      Average Loss:  0.00027363173283447397
+# Iteration:  8700        s:292.1168      Average Loss:  0.0002626712765595585
+# Iteration:  8800        s:291.4587      Average Loss:  0.0002506666282170045
+# Iteration:  8900        s:290.7778      Average Loss:  0.00023610830792677006
+# Iteration:  9000        s:290.6592      Average Loss:  0.00022751769251044607
+# Iteration:  9100        s:289.8901      Average Loss:  0.00022772754258767235
+# Iteration:  9200        s:288.9094      Average Loss:  0.00020646573537305812
+# Epoch time:  3011.7686376571655
+# Epoch 10
+# Iteration:  9300        s:285.8600      Average Loss:  0.00019687743981194216
+# Iteration:  9400        s:286.8211      Average Loss:  0.00018714779870606434
+# Iteration:  9500        s:285.9634      Average Loss:  0.00017922323017046437
+# Iteration:  9600        s:285.8465      Average Loss:  0.00017100210926400904
+# Iteration:  9700        s:284.3063      Average Loss:  0.00015994244028661342
+# Iteration:  9800        s:283.0301      Average Loss:  0.0001604018249508954
+# Iteration:  9900        s:281.1404      Average Loss:  0.00014701714371767594
+# Iteration:  10000       s:280.1682      Average Loss:  0.0001415771621032036
+# Iteration:  10100       s:278.8132      Average Loss:  0.000133853368643031
+# Iteration:  10200       s:277.6288      Average Loss:  0.00012642366345971823
+# Iteration:  10300       s:276.2265      Average Loss:  0.0001211454921940458
+# Epoch time:  2905.8302533626556
+# [saved] after_time -> weights/
+# Done.

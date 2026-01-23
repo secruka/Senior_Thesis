@@ -68,11 +68,11 @@ def angle_cls_12(hand_x: float, hand_y: float, cx: float, cy: float) -> int:
 
 def hour_to_idx(hour: int) -> int:
     # 12 -> 0, 1..11 -> 1..11
-    return 0 if int(hour) == 12 else int(hour)
+    return int(hour) 
 
 
 def idx_to_hour(idx: int) -> int:
-    return 12 if int(idx) == 0 else int(idx)
+    return int(idx)
 
 
 def correct_idx(image_idx: int, steps: int) -> int:
@@ -114,6 +114,24 @@ class RowLabels:
     rot_cls: int
     h_img_cls: int
     m_img_cls: int
+
+
+def collate_fn_rowlabels(batch):
+    """Custom collate function for batches containing RowLabels dataclass."""
+    imgs = []
+    labels_list = []
+    rel_paths = []
+    
+    for img, labels, rel_path in batch:
+        imgs.append(img)
+        labels_list.append(labels)
+        rel_paths.append(rel_path)
+    
+    # Stack images into a batch tensor
+    imgs = torch.stack(imgs)
+    
+    # Convert labels dataclass to a list of dataclasses (keep as-is for unpacking later)
+    return imgs, labels_list, rel_paths
 
 
 class RotationCsvTorchDataset(torch.utils.data.Dataset):
@@ -319,7 +337,7 @@ def topk_time_hits(time_meta: torch.Tensor, time_prob: torch.Tensor, hour_gt: to
 def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--data_root", type=str, required=True)
-    p.add_argument("--csv", type=str, default="rotation.csv")
+    p.add_argument("--csv", type=str, default="rotations.csv")
     p.add_argument("--subset", type=str, default="test", choices=["train", "valid", "test"])
     p.add_argument("--weights_dir", type=str, default="weights")
     p.add_argument("--tag", type=str, default="after_time", help="dial_{tag}.pth の tag")
@@ -370,6 +388,7 @@ def main():
         shuffle=False,
         num_workers=args.num_workers,
         pin_memory=torch.cuda.is_available(),
+        collate_fn=collate_fn_rowlabels,
     )
 
     # load nets
@@ -408,7 +427,7 @@ def main():
 
     printed = 0
 
-    for imgs, labels, rel_paths in loader:
+    for imgs, labels_list, rel_paths in loader:
         if printed < 5:
             for j in range(min(5, imgs.shape[0])):
                 print("DBG", rel_paths[j],
@@ -418,12 +437,12 @@ def main():
                 "mimg_pred", int(mimg_pred[j]))
         imgs = imgs.to(device)
 
-        # gt tensors
-        hour_gt = torch.tensor([lab.hour_time for lab in labels], device=device, dtype=torch.long)
-        min_gt = torch.tensor([lab.minute_time for lab in labels], device=device, dtype=torch.long)
-        rot_gt = torch.tensor([lab.rot_cls for lab in labels], device=device, dtype=torch.long)
-        himg_gt = torch.tensor([lab.h_img_cls for lab in labels], device=device, dtype=torch.long)
-        mimg_gt = torch.tensor([lab.m_img_cls for lab in labels], device=device, dtype=torch.long)
+        # gt tensors - unpack from labels_list
+        hour_gt = torch.tensor([lab.hour_time for lab in labels_list], device=device, dtype=torch.long)
+        min_gt = torch.tensor([lab.minute_time for lab in labels_list], device=device, dtype=torch.long)
+        rot_gt = torch.tensor([lab.rot_cls for lab in labels_list], device=device, dtype=torch.long)
+        himg_gt = torch.tensor([lab.h_img_cls for lab in labels_list], device=device, dtype=torch.long)
+        mimg_gt = torch.tensor([lab.m_img_cls for lab in labels_list], device=device, dtype=torch.long)
 
         p_dial = net_dial(imgs)   # [B,4]
         p_hour = net_hour(imgs)   # [B,12]
@@ -482,3 +501,22 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+#  python evaluate_clock_integrated.py --data_root clock_kaggle --csv rotations.csv --weights_dir weights --tag after_time --subset train --max_samples 100
+# Using device: cuda
+# [0] train/1-00/1.jpg | GT=1:00 | Pred=12:00 | top5=12:00, 3:15, 8:45, 1:00, 2:00
+# [1] train/1-00/12.jpg | GT=1:00 | Pred=3:15 | top5=3:15, 8:45, 4:15, 5:30, 5:15
+# [2] train/1-00/13.jpg | GT=1:00 | Pred=8:45 | top5=8:45, 3:15, 12:00, 9:45, 10:45
+# [3] train/1-00/15.jpg | GT=1:00 | Pred=2:00 | top5=2:00, 9:00, 11:00, 12:00, 4:00
+# [4] train/1-00/16.jpg | GT=1:00 | Pred=9:00 | top5=9:00, 2:00, 11:00, 8:00, 3:00
+
+# === Results ===
+# N = 100
+# dial acc        : 68.00%
+# hour_img acc    : 0.00%
+# minute_img acc  : 63.00%
+# --- integrated time ---
+# time (exact) acc: 0.00%
+# hour acc        : 4.00%
+# minute acc      : 41.00%
+# top-3 time acc  : 0.00%
