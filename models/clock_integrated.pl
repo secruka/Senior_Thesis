@@ -22,7 +22,9 @@
 % --- neural predicates ---
 % This will be alrighty
 nn(net_dial,   [X], R, [0,1,2,3]) :: dial(X,R).
+
 nn(net_hour,   [X], H0, [0,1,2,3,4,5,6,7,8,9,10,11]) :: hour_img(X,H0).
+
 nn(net_minute, [X], M0, [0,1,2,3,4,5,6,7,8,9,10,11]) :: minute_img(X,M0).
 
 % Convenience predicate for pretraining hands

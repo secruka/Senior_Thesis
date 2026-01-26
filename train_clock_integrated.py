@@ -439,6 +439,17 @@ def parse_args():
     p.add_argument("--load_dial", type=str, default=None)
     p.add_argument("--load_hour", type=str, default=None)
     p.add_argument("--load_minute", type=str, default=None)
+    p.add_argument(
+    "--dial_data_root",
+    type=str,
+    default=None,
+    help="dial学習用の画像ルート。省略時は data_root/nohands を使う",
+    )
+    p.add_argument(
+    "--finetune_dial",
+    action="store_true",
+    help="指定すると Stage3(time) でも dial を更新する（基本は指定しない＝freeze推奨）",
+    )
 
     return p.parse_args()
 
@@ -478,6 +489,24 @@ def main():
         transform=tfm,
         max_samples=args.max_test,
     )
+    dial_root = args.dial_data_root
+    if dial_root is None:
+        dial_root = os.path.join(args.data_root, "nohands")
+
+    dial_train_torch = RotationCsvTorchDataset(
+        data_root=dial_root,
+        csv_path=csv_path,
+        subset="train",
+        transform=tfm,
+        max_samples=args.max_train,
+    )
+    dial_test_torch = RotationCsvTorchDataset(
+    data_root=dial_root,
+    csv_path=csv_path,
+    subset="test",
+    transform=tfm,
+    max_samples=args.max_test,
+)
 
     if len(train_torch) == 0:
         raise RuntimeError("No training rows after filtering. Check your rotations.csv and subset paths.")
@@ -503,7 +532,7 @@ def main():
 
     if args.run == "dial":
         args.task = "dial"
-        run_training(args, model, train_torch, test_torch)
+        run_training(args, model, dial_train_torch, dial_test_torch)  # ←ここ
         save_all("dial")
         return
 
@@ -520,11 +549,17 @@ def main():
         return
 
     # pretrain_and_finetune
-    print("=== Stage 1: dial pretrain ===")
+    print("=== Stage 1: dial pretrain (NOHANDS) ===")
     args.task = "dial"
-    run_training(args, model, train_torch, test_torch)
+    run_training(args, model, dial_train_torch, dial_test_torch)  # ←ここ
     save_all("after_dial")
 
+# ★おすすめ：dial を固定して、Stage3で針リークに戻るのを防ぐ
+    if not args.finetune_dial:
+        for p in cnn_dial.parameters():
+            p.requires_grad = False
+        print("[info] dial is frozen after Stage 1 (recommended).")
+        
     print("=== Stage 2: hands pretrain ===")
     args.task = "hands"
     run_training(args, model, train_torch, test_torch)
