@@ -521,3 +521,147 @@ if __name__ == "__main__":
 # hour acc        : 4.00%
 # minute acc      : 41.00%
 # top-3 time acc  : 0.00%
+
+
+# python train_clock_integrated.py --data_root clock_kaggle --csv rotations.csv --run pretrain_and_finetune --epochs 3 --batch_size 8 
+# C:\Users\311\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\deepproblog\engines\__init__.py:6: UserWarning: ApproximateEngine is not available as PySwip could not be found
+#   warnings.warn("ApproximateEngine is not available as PySwip could not be found")
+# Using device: cuda
+# === Stage 1: dial pretrain ===
+# Training  for 3 epoch(s)
+# Epoch 1
+# Iteration:  100         s:12.6418       Average Loss:  1.1810797418281436
+# Iteration:  200         s:12.4749       Average Loss:  0.739731719493866
+# Iteration:  300         s:12.4291       Average Loss:  0.45533761732745914
+# Iteration:  400         s:12.3847       Average Loss:  0.32141637822147456
+# Iteration:  500         s:12.3793       Average Loss:  0.3881495309853926
+# Iteration:  600         s:12.3636       Average Loss:  0.29687983978539706
+# Iteration:  700         s:12.3713       Average Loss:  0.25075516911456364
+# Iteration:  800         s:12.5792       Average Loss:  0.2198009922495112
+# Iteration:  900         s:12.4417       Average Loss:  0.23430747044738381
+# Iteration:  1000        s:12.3924       Average Loss:  0.24019296657061204
+# Epoch time:  128.34372353553772
+# Epoch 2
+# Iteration:  1100        s:12.2598       Average Loss:  0.2090565747069195
+# Iteration:  1200        s:12.3507       Average Loss:  0.21628295364556835
+# Iteration:  1300        s:12.3344       Average Loss:  0.15237343714106827
+# Iteration:  1400        s:12.3260       Average Loss:  0.20053247059811838
+# Iteration:  1500        s:12.3202       Average Loss:  0.19084968415787443
+# Iteration:  1600        s:12.3328       Average Loss:  0.24658059923676773
+# Iteration:  1700        s:12.3454       Average Loss:  0.22191099735326134
+# Iteration:  1800        s:12.3426       Average Loss:  0.16200632801628673
+# Iteration:  1900        s:12.3232       Average Loss:  0.19265167562989519
+# Iteration:  2000        s:12.3323       Average Loss:  0.1932024739589542
+# Epoch time:  127.09081292152405
+# Epoch 3
+# Iteration:  2100        s:12.2803       Average Loss:  0.14188794943969696
+# Iteration:  2200        s:12.3777       Average Loss:  0.20386552860261872
+# Iteration:  2300        s:12.3443       Average Loss:  0.14918343918281607
+# Iteration:  2400        s:12.3328       Average Loss:  0.1607446586439619
+# Iteration:  2500        s:12.3399       Average Loss:  0.113886769101955
+# Iteration:  2600        s:12.3368       Average Loss:  0.15523527052951977
+# Iteration:  2700        s:12.3478       Average Loss:  0.15289108582946936
+# Iteration:  2800        s:12.3387       Average Loss:  0.16089108218846376
+# Iteration:  2900        s:12.3373       Average Loss:  0.1272497276082868
+# Iteration:  3000        s:12.3458       Average Loss:  0.12112400538055226
+# Epoch time:  127.20750045776367
+# [saved] after_dial -> weights/
+# === Stage 2: hands pretrain ===
+# Training  for 3 epoch(s)
+# Epoch 1
+# Iteration:  100         s:22.4970       Average Loss:  4.874348300099373
+# Iteration:  200         s:22.3825       Average Loss:  3.8086484161019327
+# Iteration:  300         s:22.4552       Average Loss:  2.176035328656435
+# Iteration:  400         s:22.4936       Average Loss:  1.5354948895424605
+# Iteration:  500         s:22.5266       Average Loss:  1.3524658481776715
+# Iteration:  600         s:22.4549       Average Loss:  1.0576368469372393
+# Iteration:  700         s:22.3462       Average Loss:  0.9829019282758236
+# Iteration:  800         s:22.3267       Average Loss:  0.9178720423206687
+# Iteration:  900         s:22.3486       Average Loss:  0.8553137584589422
+# Iteration:  1000        s:22.4334       Average Loss:  0.8879691665060818
+# Epoch time:  231.29484844207764
+# Epoch 2
+# Iteration:  1100        s:22.2213       Average Loss:  0.8438134894892574
+# Iteration:  1200        s:22.3375       Average Loss:  0.7568309475667775
+# Iteration:  1300        s:22.2693       Average Loss:  0.6676632767729461
+# Iteration:  1400        s:22.3920       Average Loss:  0.6543280407227576
+# Iteration:  1500        s:22.2988       Average Loss:  0.6026314416714013
+# Iteration:  1600        s:22.4661       Average Loss:  0.6894308372959495
+# Iteration:  1700        s:22.3421       Average Loss:  0.7526796760875731
+# Iteration:  1800        s:22.4644       Average Loss:  0.6802739552408457
+# Iteration:  1900        s:22.4109       Average Loss:  0.6144409865047783
+# Iteration:  2000        s:22.4399       Average Loss:  0.6133106839377434
+# Epoch time:  230.55683302879333
+# Epoch 3
+# Iteration:  2100        s:22.2416       Average Loss:  0.6639694057032466
+# Iteration:  2200        s:22.3984       Average Loss:  0.6304160727839917
+# Iteration:  2300        s:22.3321       Average Loss:  0.5542331165540964
+# Iteration:  2400        s:22.3371       Average Loss:  0.47512212849687785
+# Iteration:  2500        s:22.3447       Average Loss:  0.5460721257328988
+# Iteration:  2600        s:22.3711       Average Loss:  0.5325166556425392
+# Iteration:  2700        s:22.4630       Average Loss:  0.469089821302332
+# Iteration:  2800        s:22.3685       Average Loss:  0.5328133486304432
+# Iteration:  2900        s:22.3696       Average Loss:  0.4887838943814859
+# Iteration:  3000        s:22.4063       Average Loss:  0.5216093576699495
+# Epoch time:  230.59303665161133
+# [saved] after_hands -> weights/
+# === Stage 3: time finetune (integrated constraints) ===
+# Training  for 3 epoch(s)
+# Epoch 1
+# Iteration:  200         s:358.5562      Average Loss:  0.2254631886119023
+# Iteration:  300         s:356.8185      Average Loss:  0.15466224047122523
+# Iteration:  400         s:356.7819      Average Loss:  0.10149299323093146
+# Iteration:  500         s:354.6330      Average Loss:  0.10523408977082
+# Iteration:  600         s:352.2586      Average Loss:  0.07591350683942437
+# Iteration:  700         s:353.9159      Average Loss:  0.06890808354830369
+# Iteration:  800         s:357.4204      Average Loss:  0.06263499191496522
+# Iteration:  900         s:355.3534      Average Loss:  0.055748667356092484
+# Iteration:  1000        s:356.4116      Average Loss:  0.05877123244572431
+# Epoch time:  3668.1929993629456
+# Epoch 2
+# Iteration:  1100        s:352.9976      Average Loss:  0.05180227333214134
+# Iteration:  1200        s:351.6925      Average Loss:  0.06487130184541456
+# Iteration:  1300        s:351.3907      Average Loss:  0.04621329866698943
+# Iteration:  1400        s:353.8106      Average Loss:  0.046521875199396164
+# Iteration:  1500        s:352.5904      Average Loss:  0.03571593797998503
+# Iteration:  1600        s:352.8678      Average Loss:  0.05239828611840494
+# Iteration:  1700        s:353.0825      Average Loss:  0.04245960388914682
+# Iteration:  1800        s:354.0862      Average Loss:  0.03374497350072488
+# Iteration:  1900        s:357.5600      Average Loss:  0.027952284240163862
+# Iteration:  2000        s:358.6220      Average Loss:  0.08627835731836968
+# Epoch time:  3652.240823030472
+# Epoch 3
+# Iteration:  2100        s:359.9379      Average Loss:  0.031522018794203174
+# Iteration:  2200        s:360.2260      Average Loss:  0.01610048610600643
+# Iteration:  2300        s:362.6902      Average Loss:  0.04721626936574466
+# Iteration:  2400        s:365.2453      Average Loss:  0.023703858259832487
+# Iteration:  2500        s:359.8850      Average Loss:  0.029516375390812755
+# Iteration:  2600        s:358.5413      Average Loss:  0.018372901376569644
+# Iteration:  2700        s:355.8577      Average Loss:  0.03014076768013183
+# Iteration:  2800        s:358.7137      Average Loss:  0.01721771478652954
+# Iteration:  2900        s:354.9141      Average Loss:  0.012259587164153344
+# Iteration:  3000        s:352.9833      Average Loss:  0.017951949002454056
+# Epoch time:  3693.0817289352417
+# [saved] after_time -> weights/
+# python evaluate_clock_integrated.py --data_root clock_kaggle --csv rotations.csv --weights_dir weights --tag after_time --subset train --max_samples 100
+# Using device: cuda
+# DBG train/1-00/1.jpg himg_gt 10 himg_pred 7 mimg_gt 9 mimg_pred 9
+# DBG train/1-00/12.jpg himg_gt 10 himg_pred 7 mimg_gt 9 mimg_pred 9
+# DBG train/1-00/13.jpg himg_gt 10 himg_pred 7 mimg_gt 9 mimg_pred 9
+# DBG train/1-00/15.jpg himg_gt 1 himg_pred 1 mimg_gt 0 mimg_pred 6
+# DBG train/1-00/16.jpg himg_gt 1 himg_pred 1 mimg_gt 0 mimg_pred 1
+# [0] train/1-00/1.jpg | GT=1:00 | Pred=1:15 | top5=1:15, 12:15, 11:15, 2:15, 4:15
+# [1] train/1-00/12.jpg | GT=1:00 | Pred=1:15 | top5=1:15, 12:15, 11:15, 2:15, 4:15
+# [2] train/1-00/13.jpg | GT=1:00 | Pred=10:00 | top5=10:00, 9:00, 8:00, 11:00, 2:00
+# [3] train/1-00/15.jpg | GT=1:00 | Pred=12:30 | top5=12:30, 1:05, 3:45, 4:20, 6:30
+# [4] train/1-00/16.jpg | GT=1:00 | Pred=1:05 | top5=1:05, 12:30, 1:00, 2:05, 1:15
+
+# === Results ===
+# N = 100
+# dial acc        : 71.00%
+# hour_img acc    : 61.00%
+# minute_img acc  : 40.00%
+# --- integrated time ---
+# time (exact) acc: 9.00%
+# hour acc        : 44.00%
+# minute acc      : 28.00%
