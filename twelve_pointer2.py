@@ -41,10 +41,10 @@ import pandas as pd
 # ここを編集して使ってください
 # =========================
 # rotations.csv / rotation.csv のパス
-IN_CSV = Path("rotations.csv")
+IN_CSV = Path("clock_kaggle/rotations_new.csv")
 
 # 出力CSVのパス
-OUT_CSV = Path("clock_kaggle/dial_keypoints.csv")
+OUT_CSV = Path("clock_kaggle/rotations_new_12.csv")
 
 # 長針座標がCSVに無い/欠損のときに使う半径
 FIXED_RADIUS = 90.0
