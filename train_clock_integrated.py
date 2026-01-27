@@ -433,7 +433,7 @@ def parse_args():
 
     p.add_argument("--seed", type=int, default=0)
 
-    p.add_argument("--save_dir", type=str, default="weights")
+    p.add_argument("--save_dir", type=str, default="weights_new")
 
     # load pretrained
     p.add_argument("--load_dial", type=str, default=None)

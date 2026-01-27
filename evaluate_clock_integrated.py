@@ -665,3 +665,48 @@ if __name__ == "__main__":
 # time (exact) acc: 9.00%
 # hour acc        : 44.00%
 # minute acc      : 28.00%
+
+#  python evaluate_clock_integrated.py --data_root clock_kaggle --csv rotations.csv --weights_dir weights --tag after_time --subset train --max_samples 100
+# Using device: cuda
+# DBG train/1-00/1.jpg himg_gt 10 himg_pred 10 mimg_gt 9 mimg_pred 7
+# DBG train/1-00/12.jpg himg_gt 10 himg_pred 10 mimg_gt 9 mimg_pred 3
+# DBG train/1-00/13.jpg himg_gt 10 himg_pred 10 mimg_gt 9 mimg_pred 3
+# [0] train/1-00/1.jpg | GT=1:00 | Pred=9:35 | top5=9:35, 10:15, 8:35, 9:45, 9:15
+# [1] train/1-00/12.jpg | GT=1:00 | Pred=12:30 | top5=12:30, 11:30, 10:15, 9:15, 9:30
+# [3] train/1-00/15.jpg | GT=1:00 | Pred=1:05 | top5=1:05, 3:05, 12:05, 9:05, 4:05
+# [4] train/1-00/16.jpg | GT=1:00 | Pred=1:05 | top5=1:05, 12:30, 12:05, 12:50, 11:30
+# === Results ===
+# N = 100
+# dial acc        : 79.00%
+# hour_img acc    : 49.00%
+# minute_img acc  : 39.00%
+# --- integrated time ---
+# time (exact) acc: 11.00%
+# hour acc        : 36.00%
+# minute acc      : 31.00%
+# top-3 time acc  : 18.00%
+
+
+# PS C:\Users\311\Downloads\Senior_Thesis> python evaluate_clock_integrated.py --data_root clock_kaggle --csv rotations_new.csv --weights_dir weights_epoch10_csvnew_hands --tag after_time --subset train
+# Using device: cuda
+# DBG train/1-00/1.jpg himg_gt 10 himg_pred 2 mimg_gt 9 mimg_pred 8
+# DBG train/1-00/12.jpg himg_gt 10 himg_pred 2 mimg_gt 9 mimg_pred 8
+# DBG train/1-00/13.jpg himg_gt 10 himg_pred 2 mimg_gt 9 mimg_pred 8
+# DBG train/1-00/15.jpg himg_gt 1 himg_pred 1 mimg_gt 0 mimg_pred 10
+# DBG train/1-00/16.jpg himg_gt 1 himg_pred 1 mimg_gt 0 mimg_pred 10
+# [0] train/1-00/1.jpg | GT=1:00 | Pred=4:55 | top5=4:55, 1:55, 2:55, 3:55, 9:55
+# [1] train/1-00/12.jpg | GT=1:00 | Pred=11:25 | top5=11:25, 8:25, 9:25, 8:10, 10:25
+# [2] train/1-00/13.jpg | GT=1:00 | Pred=1:40 | top5=1:40, 5:10, 10:40, 8:10, 1:55
+# [3] train/1-00/15.jpg | GT=1:00 | Pred=9:35 | top5=9:35, 9:40, 7:20, 10:40, 10:35
+# [4] train/1-00/16.jpg | GT=1:00 | Pred=9:35 | top5=9:35, 12:50, 7:20, 4:05, 9:40
+
+# === Results ===
+# N = 8243
+# dial acc        : 66.04%
+# hour_img acc    : 16.11%
+# minute_img acc  : 6.20%
+# --- integrated time ---
+# time (exact) acc: 0.84%
+# hour acc        : 10.65%
+# minute acc      : 8.77%
+# top-3 time acc  : 3.68%

@@ -1106,3 +1106,29 @@ if __name__ == "__main__":
 # Epoch time:  2905.8302533626556
 # [saved] after_time -> weights/
 # Done.
+
+
+#  python train_clock_integrated_heatmap.py --data_root clock_kaggle --csv rotations_new.csv --run pretrain_and_finetune --epochs 10 --batch_size 8
+
+#  python evaluate_clock_integrated.py --data_root clock_kaggle --csv rotations_new.csv --weights_dir weights_epoch10_csvnew_hands --tag after_time --subset train
+# Using device: cuda
+# DBG train/1-00/1.jpg himg_gt 10 himg_pred 2 mimg_gt 9 mimg_pred 8
+# DBG train/1-00/12.jpg himg_gt 10 himg_pred 2 mimg_gt 9 mimg_pred 8
+# DBG train/1-00/13.jpg himg_gt 10 himg_pred 2 mimg_gt 9 mimg_pred 8
+# DBG train/1-00/15.jpg himg_gt 1 himg_pred 1 mimg_gt 0 mimg_pred 10
+# DBG train/1-00/16.jpg himg_gt 1 himg_pred 1 mimg_gt 0 mimg_pred 10
+# [0] train/1-00/1.jpg | GT=1:00 | Pred=4:55 | top5=4:55, 1:55, 2:55, 3:55, 9:55
+# [1] train/1-00/12.jpg | GT=1:00 | Pred=11:25 | top5=11:25, 8:25, 9:25, 8:10, 10:25
+# [3] train/1-00/15.jpg | GT=1:00 | Pred=9:35 | top5=9:35, 9:40, 7:20, 10:40, 10:35
+# [4] train/1-00/16.jpg | GT=1:00 | Pred=9:35 | top5=9:35, 12:50, 7:20, 4:05, 9:40
+
+# === Results ===
+# N = 8243
+# dial acc        : 66.04%
+# hour_img acc    : 16.11%
+# minute_img acc  : 6.20%
+# --- integrated time ---
+# time (exact) acc: 0.84%
+# hour acc        : 10.65%
+# minute acc      : 8.77%
+# top-3 time acc  : 3.68%

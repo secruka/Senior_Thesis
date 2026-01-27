@@ -236,3 +236,6 @@ if __name__ == "__main__":
 #  [ 90  17  40  58]]
 # PS C:\Users\311\Downloads\Senior_Thesis> python evalu.py --data_root clock_kaggle --csv rotations.csv --split test --hour_pth weights/hour_after_hands.pth --minute_pth weights/minute_after_hands.pth
 # [HANDS] split=test  hour_acc=0.2619  minute_acc=0.5706  joint=0.1646  (random=0.0833)
+
+# python evalu.py  --data_root clock_kaggle --csv rotations_new.csv --split test --hour_pth weights_epoch10_csvnew_hands/hour_after_hands.pth --minute_pth weights_epoch10_csvnew_hands/minute_after_hands.pth
+# [HANDS] split=test  hour_acc=0.1740  minute_acc=0.0730  joint=0.0196  (random=0.0833)
