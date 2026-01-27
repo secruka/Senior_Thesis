@@ -1,5 +1,6 @@
 import os
 import argparse
+import math
 import numpy as np
 import pandas as pd
 from PIL import Image
@@ -9,6 +10,7 @@ import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 from torchvision.models import resnet18, ResNet18_Weights
+from typing import Tuple
 
 
 # -------------------------
@@ -134,6 +136,106 @@ class ResNetClassifier(nn.Module):
         return self.backbone(x)
 
 
+class DialHeatmapRotationNet(nn.Module):
+    """
+    Dial rotation を「12時キーポイントのヒートマップ」経由で推定するネットワーク。
+    """
+
+    def __init__(
+        self,
+        heatmap_size: int = 56,
+        softargmax_temp: float = 1.0,
+        angle_softmax_k: float = 8.0,
+        use_imagenet: bool = True,
+        in_size: int = 224,
+        center_xy: Tuple[float, float] = (112.0, 112.0),
+    ):
+        super().__init__()
+        self.heatmap_size = int(heatmap_size)
+        self.softargmax_temp = float(softargmax_temp)
+        self.angle_softmax_k = float(angle_softmax_k)
+        self.in_size = int(in_size)
+        self.cx, self.cy = float(center_xy[0]), float(center_xy[1])
+
+        if use_imagenet:
+            res = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
+        else:
+            res = models.resnet18(weights=None)
+
+        self.backbone = nn.Sequential(
+            res.conv1, res.bn1, res.relu, res.maxpool,
+            res.layer1, res.layer2, res.layer3, res.layer4
+        )
+
+        self.head = nn.Sequential(
+            nn.Conv2d(512, 256, 3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Upsample(size=(14, 14), mode="bilinear", align_corners=False),
+
+            nn.Conv2d(256, 128, 3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Upsample(size=(28, 28), mode="bilinear", align_corners=False),
+
+            nn.Conv2d(128, 64, 3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Upsample(size=(self.heatmap_size, self.heatmap_size), mode="bilinear", align_corners=False),
+
+            nn.Conv2d(64, 1, 1),
+        )
+
+    def forward_heatmap_logits(self, x: torch.Tensor) -> torch.Tensor:
+        f = self.backbone(x)
+        hm = self.head(f)
+        return hm
+
+    @staticmethod
+    def _softargmax_2d(hm_logits: torch.Tensor, temp: float = 1.0) -> Tuple[torch.Tensor, torch.Tensor]:
+        B, _, H, W = hm_logits.shape
+        z = hm_logits.view(B, -1) / max(temp, 1e-8)
+        p = nn.functional.softmax(z, dim=1)
+
+        xs = torch.linspace(0, W - 1, W, device=hm_logits.device)
+        ys = torch.linspace(0, H - 1, H, device=hm_logits.device)
+        yy, xx = torch.meshgrid(ys, xs, indexing="ij")
+        xx = xx.reshape(-1)
+        yy = yy.reshape(-1)
+
+        x = (p * xx[None, :]).sum(dim=1)
+        y = (p * yy[None, :]).sum(dim=1)
+        return x, y
+
+    @staticmethod
+    def _xy_to_angle_deg_top0(cx: float, cy: float, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        dx = x - cx
+        dy = y - cy
+        ang = torch.atan2(dx, -dy) * (180.0 / math.pi)
+        ang = torch.remainder(ang, 360.0)
+        return ang
+
+    @staticmethod
+    def _angle_to_rot_probs(angle_deg: torch.Tensor, k: float = 8.0) -> torch.Tensor:
+        targets = torch.tensor([0.0, 90.0, 180.0, 270.0], device=angle_deg.device)
+        diff = torch.abs(angle_deg[:, None] - targets[None, :])
+        delta = torch.minimum(diff, 360.0 - diff)
+        logits = -k * delta
+        return nn.functional.softmax(logits, dim=1)
+
+    def forward(self, x):
+        if isinstance(x, list):
+            x = torch.stack([item.value for item in x])
+
+        hm_logits = self.forward_heatmap_logits(x)
+        xh, yh = self._softargmax_2d(hm_logits, temp=self.softargmax_temp)
+
+        scale = float(self.in_size) / float(self.heatmap_size)
+        x_img = xh * scale
+        y_img = yh * scale
+
+        angle = self._xy_to_angle_deg_top0(self.cx, self.cy, x_img, y_img)
+        probs = self._angle_to_rot_probs(angle, k=self.angle_softmax_k)
+        return probs
+
+
 @torch.no_grad()
 def eval_dial(model, loader, device):
     model.eval()
@@ -203,8 +305,17 @@ def main():
     if args.dial_pth:
         dial_ds = RotationCsvDataset(args.data_root, csv_path, args.split, task="dial")
         dial_ld = DataLoader(dial_ds, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers)
-        dial_model = ResNetClassifier(num_classes=4).to(device)
-        dial_model.load_state_dict(torch.load(args.dial_pth, map_location=device))
+        
+        # Try to detect model type by loading weights and checking keys
+        weights = torch.load(args.dial_pth, map_location=device)
+        
+        # If weights contain "head." keys, it's DialHeatmapRotationNet
+        if any(k.startswith("head.") for k in weights.keys()):
+            dial_model = DialHeatmapRotationNet().to(device)
+        else:
+            dial_model = ResNetClassifier(num_classes=4).to(device)
+        
+        dial_model.load_state_dict(weights)
         acc, cm = eval_dial(dial_model, dial_ld, device)
         print(f"[DIAL] split={args.split}  acc={acc:.4f}  (random=0.25)")
         print("[DIAL] confusion matrix (true row, pred col):")

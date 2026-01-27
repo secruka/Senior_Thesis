@@ -543,6 +543,22 @@ def build_deepproblog_model(
 # ------------------------------
 
 
+def collate_labels_list(batch):
+    """
+    Custom collate function to convert RowLabels dataclass instances to a list.
+    Batch is a list of (img, labels) tuples where labels is a RowLabels instance.
+    Returns (imgs_tensor, labels_list).
+    """
+    imgs = []
+    labels = []
+    for img, label in batch:
+        imgs.append(img)
+        labels.append(label)
+    
+    imgs = torch.stack(imgs)
+    return imgs, labels
+
+
 def _gaussian_heatmap_batch_from_xy_img(
     x_img: torch.Tensor,
     y_img: torch.Tensor,
@@ -593,8 +609,8 @@ def train_dial_heatmap_supervised(
     cnn_dial.to(device)
     opt = torch.optim.Adam(cnn_dial.parameters(), lr=args.lr_dial)
 
-    dl_train = torch.utils.data.DataLoader(train_torch, batch_size=args.batch_size, shuffle=True)
-    dl_test  = torch.utils.data.DataLoader(test_torch,  batch_size=args.batch_size, shuffle=False)
+    dl_train = torch.utils.data.DataLoader(train_torch, batch_size=args.batch_size, shuffle=True, collate_fn=collate_labels_list)
+    dl_test  = torch.utils.data.DataLoader(test_torch,  batch_size=args.batch_size, shuffle=False, collate_fn=collate_labels_list)
 
     H = int(args.dial_heatmap_size)
     sigma = float(args.dial_kp_sigma)
