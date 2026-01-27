@@ -245,6 +245,9 @@ class RowLabels:
     rot_cls: int
     h_img_cls: int
     m_img_cls: int
+    # 12時キーポイント（画像座標 224x224）。dialのヒートマップ教師あり学習に使う。
+    twelve_x: Optional[float] = None
+    twelve_y: Optional[float] = None
 
 
 class RotationCsvTorchDataset(torch.utils.data.Dataset):
@@ -262,6 +265,7 @@ class RotationCsvTorchDataset(torch.utils.data.Dataset):
         subset: str = "train",
         transform=None,
         max_samples: Optional[int] = None,
+        kp12_csv_path: Optional[str] = None,
     ):
         self.data_root = data_root
         self.csv_path = csv_path
@@ -272,6 +276,28 @@ class RotationCsvTorchDataset(torch.utils.data.Dataset):
             raise FileNotFoundError(f"CSV not found: {self.csv_path}")
 
         df = pd.read_csv(self.csv_path)
+
+        # 12時キーポイントCSV（任意）: file,cx,cy,twelve_x,twelve_y,rot_deg,rot_cls ...
+        # dialのヒートマップ教師あり学習に使う（学習時にtwelve_x/yがNoneなら、そのサンプルは教師なし扱い）。
+        self.kp12_map = None
+        if kp12_csv_path:
+            kp_path = kp12_csv_path
+            # 相対パスなら data_root 配下を優先して探す
+            if not os.path.isabs(kp_path):
+                cand = os.path.join(self.data_root, kp_path)
+                if os.path.exists(cand):
+                    kp_path = cand
+            if not os.path.exists(kp_path):
+                raise FileNotFoundError(f"12-keypoint CSV not found: {kp_path}")
+            kp_df = pd.read_csv(kp_path)
+            if not {"file", "twelve_x", "twelve_y"}.issubset(set(kp_df.columns)):
+                raise ValueError("12-keypoint CSV must contain columns: file,twelve_x,twelve_y")
+            # mapping: rel_path -> (x,y)
+            self.kp12_map = {
+                str(r["file"]): (float(r["twelve_x"]), float(r["twelve_y"]))
+                for _, r in kp_df.iterrows()
+            }
+
 
         required = [
             "file",
@@ -357,12 +383,21 @@ class RotationCsvTorchDataset(torch.utils.data.Dataset):
         m_img_cls = angle_cls_12(mx, my, cx, cy)
         h_img_cls = angle_cls_12(hx, hy, cx, cy)
 
+        twelve_x = None
+        twelve_y = None
+        if getattr(self, "kp12_map", None) is not None:
+            key = str(row["file"]) if isinstance(row, dict) else str(row["file"])
+            if key in self.kp12_map:
+                twelve_x, twelve_y = self.kp12_map[key]
+
         return RowLabels(
             hour_time=hour_time,
             minute_time=minute_time,
             rot_cls=rot_cls,
             h_img_cls=h_img_cls,
             m_img_cls=m_img_cls,
+            twelve_x=twelve_x,
+            twelve_y=twelve_y,
         )
     #ここは何？なぜrgb,ラベリングしている
     def __getitem__(self, idx: int):
@@ -507,12 +542,201 @@ def build_deepproblog_model(
 # 5) Training orchestration
 # ------------------------------
 
+
+def _gaussian_heatmap_batch_from_xy_img(
+    x_img: torch.Tensor,
+    y_img: torch.Tensor,
+    heatmap_size: int,
+    sigma: float,
+    img_size: int = 224,
+) -> torch.Tensor:
+    """
+    x_img, y_img: (B,) image coordinates in [0,img_size)
+    returns: target heatmap (B,1,H,W) in [0,1]
+    """
+    device = x_img.device
+    H = W = int(heatmap_size)
+    scale = float(H) / float(img_size)
+    xh = x_img * scale
+    yh = y_img * scale
+
+    xs = torch.arange(W, device=device).float().view(1, 1, W)  # (1,1,W)
+    ys = torch.arange(H, device=device).float().view(1, H, 1)  # (1,H,1)
+
+    xh = xh.view(-1, 1, 1)
+    yh = yh.view(-1, 1, 1)
+    g = torch.exp(-((xs - xh) ** 2 + (ys - yh) ** 2) / (2.0 * (sigma ** 2) + 1e-9))  # (B,H,W)
+    return g.unsqueeze(1)  # (B,1,H,W)
+
+
+def train_dial_heatmap_supervised(
+    args,
+    cnn_dial: nn.Module,
+    train_torch: RotationCsvTorchDataset,
+    test_torch: RotationCsvTorchDataset,
+    device: torch.device,
+):
+    """
+    dial(回転)を「12時キーポイントのヒートマップ教師」で学習する。
+
+    - 画像: args.dial_data_root（デフォルト data_root/nohands）
+    - 教師: rotations_new_12.csv (file,twelve_x,twelve_y,...) など
+    - 損失: BCEWithLogits(heatmap_logits, gaussian_target)
+      ※ twelve_x/y が無いサンプルは教師なし扱い（lossに入れない）
+    - 参考用に rot_cls accuracy も計算（cnn_dialの出力probsからargmax）
+    """
+    if not hasattr(cnn_dial, "forward_heatmap_logits"):
+        raise ValueError("cnn_dial does not support heatmap supervision. Use --dial_arch heatmap.")
+    if getattr(train_torch, "kp12_map", None) is None:
+        raise ValueError("12-keypoint CSV not loaded. Provide --dial_kp_csv rotations_new_12.csv")
+
+    cnn_dial.to(device)
+    opt = torch.optim.Adam(cnn_dial.parameters(), lr=args.lr_dial)
+
+    dl_train = torch.utils.data.DataLoader(train_torch, batch_size=args.batch_size, shuffle=True)
+    dl_test  = torch.utils.data.DataLoader(test_torch,  batch_size=args.batch_size, shuffle=False)
+
+    H = int(args.dial_heatmap_size)
+    sigma = float(args.dial_kp_sigma)
+
+    for ep in range(1, args.epochs + 1):
+        cnn_dial.train()
+        total_loss = 0.0
+        total_n = 0
+        correct = 0
+        total = 0
+
+        for it, (imgs, labels) in enumerate(dl_train, 1):
+            imgs = imgs.to(device)
+
+            # labels は RowLabels の list になる
+            if isinstance(labels, list):
+                rot = torch.tensor([int(l.rot_cls) for l in labels], device=device, dtype=torch.long)
+                tx = torch.tensor(
+                    [float(l.twelve_x) if l.twelve_x is not None else float("nan") for l in labels],
+                    device=device,
+                )
+                ty = torch.tensor(
+                    [float(l.twelve_y) if l.twelve_y is not None else float("nan") for l in labels],
+                    device=device,
+                )
+            else:
+                # 念のため（環境差でcollateされる場合）
+                rot = torch.tensor([int(r) for r in labels.rot_cls], device=device, dtype=torch.long)
+                tx = torch.tensor([float(r) for r in labels.twelve_x], device=device)
+                ty = torch.tensor([float(r) for r in labels.twelve_y], device=device)
+
+            mask = torch.isfinite(tx) & torch.isfinite(ty)
+            hm_logits = cnn_dial.forward_heatmap_logits(imgs)  # (B,1,H,W)
+
+            loss = torch.tensor(0.0, device=device)
+            if mask.any():
+                target = _gaussian_heatmap_batch_from_xy_img(
+                    x_img=tx[mask],
+                    y_img=ty[mask],
+                    heatmap_size=H,
+                    sigma=sigma,
+                    img_size=224,
+                )
+                loss = F.binary_cross_entropy_with_logits(hm_logits[mask], target)
+
+            # 補助：rot_clsを少しだけ効かせたい場合（デフォルト0）
+            if float(args.dial_ce_aux) > 0.0:
+                probs = cnn_dial(imgs)  # (B,4)
+                ce = F.nll_loss(torch.log(probs + 1e-9), rot)
+                loss = loss + float(args.dial_ce_aux) * ce
+
+            opt.zero_grad()
+            loss.backward()
+            opt.step()
+
+            bs = imgs.size(0)
+            total_loss += float(loss.item()) * bs
+            total_n += bs
+
+            # accuracy
+            with torch.no_grad():
+                probs = cnn_dial(imgs)
+                pred = probs.argmax(dim=1)
+                correct += int((pred == rot).sum().item())
+                total += bs
+
+            if args.log_iter and it % int(args.log_iter) == 0:
+                avg = total_loss / max(total_n, 1)
+                acc = correct / max(total, 1)
+                print(f"[dial-kp][ep {ep}] iter {it} loss={avg:.4f} acc={acc:.4f}")
+
+        # eval
+        cnn_dial.eval()
+        with torch.no_grad():
+            ev_loss = 0.0
+            ev_n = 0
+            ev_correct = 0
+            ev_total = 0
+            for imgs, labels in dl_test:
+                imgs = imgs.to(device)
+                if isinstance(labels, list):
+                    rot = torch.tensor([int(l.rot_cls) for l in labels], device=device, dtype=torch.long)
+                    tx = torch.tensor(
+                        [float(l.twelve_x) if l.twelve_x is not None else float("nan") for l in labels],
+                        device=device,
+                    )
+                    ty = torch.tensor(
+                        [float(l.twelve_y) if l.twelve_y is not None else float("nan") for l in labels],
+                        device=device,
+                    )
+                else:
+                    rot = torch.tensor([int(r) for r in labels.rot_cls], device=device, dtype=torch.long)
+                    tx = torch.tensor([float(r) for r in labels.twelve_x], device=device)
+                    ty = torch.tensor([float(r) for r in labels.twelve_y], device=device)
+
+                mask = torch.isfinite(tx) & torch.isfinite(ty)
+                hm_logits = cnn_dial.forward_heatmap_logits(imgs)
+
+                loss = torch.tensor(0.0, device=device)
+                if mask.any():
+                    target = _gaussian_heatmap_batch_from_xy_img(
+                        x_img=tx[mask],
+                        y_img=ty[mask],
+                        heatmap_size=H,
+                        sigma=sigma,
+                        img_size=224,
+                    )
+                    loss = F.binary_cross_entropy_with_logits(hm_logits[mask], target)
+
+                if float(args.dial_ce_aux) > 0.0:
+                    probs = cnn_dial(imgs)
+                    ce = F.nll_loss(torch.log(probs + 1e-9), rot)
+                    loss = loss + float(args.dial_ce_aux) * ce
+
+                bs = imgs.size(0)
+                ev_loss += float(loss.item()) * bs
+                ev_n += bs
+
+                probs = cnn_dial(imgs)
+                pred = probs.argmax(dim=1)
+                ev_correct += int((pred == rot).sum().item())
+                ev_total += bs
+
+            print(f"[dial-kp][ep {ep}] train_loss={total_loss/max(total_n,1):.4f} "
+                  f"train_acc={correct/max(total,1):.4f}  "
+                  f"test_loss={ev_loss/max(ev_n,1):.4f} test_acc={ev_correct/max(ev_total,1):.4f}")
+
 def run_training(
     args,
     model: Model,
     train_torch: RotationCsvTorchDataset,
     test_torch: RotationCsvTorchDataset,
+    cnn_dial: Optional[nn.Module] = None,
+    device: Optional[torch.device] = None,
 ):
+    # dialのみ：12時キーポイントCSVが読み込まれている場合は、ヒートマップ教師あり学習を優先する
+    if args.task == "dial" and getattr(train_torch, "kp12_map", None) is not None and args.dial_arch.strip().lower() in {"heatmap", "kp", "keypoint", "hm"}:
+        if cnn_dial is None or device is None:
+            raise ValueError("cnn_dial/device is required for dial-kp supervised training")
+        train_dial_heatmap_supervised(args, cnn_dial, train_torch, test_torch, device)
+        return
+
     if args.task == "dial":
         train_ds = DPBDialDataset(train_torch)
         test_ds = DPBDialDataset(test_torch)
@@ -569,6 +793,12 @@ def parse_args():
     p.add_argument("--dial_heatmap_size", type=int, default=56, help="dial heatmap解像度 (例 56)")
     p.add_argument("--dial_softargmax_temp", type=float, default=1.0, help="soft-argmax温度（小さいほど尖る）")
     p.add_argument("--dial_angle_softmax_k", type=float, default=8.0, help="角度→4分類softmaxの鋭さ（大きいほど尖る）")
+
+    # 12時キーポイント教師あり学習（dial heatmap用）
+    p.add_argument("--dial_kp_csv", type=str, default=None,
+                   help="12時キーポイントCSV（例: rotations_new_12.csv）。指定するとdialをヒートマップ教師で学習する")
+    p.add_argument("--dial_kp_sigma", type=float, default=2.5, help="教師ヒートマップのガウスsigma（heatmap座標）")
+    p.add_argument("--dial_ce_aux", type=float, default=0.0, help="補助でrot_cls CEを混ぜる重み（0なら混ぜない）")
 
     p.add_argument("--task", type=str, choices=["dial", "hands", "time"], default="time")
 
@@ -648,6 +878,7 @@ def main():
         subset="train",
         transform=tfm,
         max_samples=args.max_train,
+        kp12_csv_path=args.dial_kp_csv,
     )
     dial_test_torch = RotationCsvTorchDataset(
     data_root=dial_root,
@@ -655,7 +886,8 @@ def main():
     subset="test",
     transform=tfm,
     max_samples=args.max_test,
-)
+    kp12_csv_path=args.dial_kp_csv,
+    )
 
     if len(train_torch) == 0:
         raise RuntimeError("No training rows after filtering. Check your rotations.csv and subset paths.")
@@ -685,7 +917,7 @@ def main():
 
     if args.run == "dial":
         args.task = "dial"
-        run_training(args, model, dial_train_torch, dial_test_torch)  # ←ここ
+        run_training(args, model, dial_train_torch, dial_test_torch, cnn_dial=cnn_dial, device=device)  # ←ここ
         save_all("dial")
         return
 
@@ -704,7 +936,7 @@ def main():
     # pretrain_and_finetune
     print("=== Stage 1: dial pretrain (NOHANDS) ===")
     args.task = "dial"
-    run_training(args, model, dial_train_torch, dial_test_torch)  # ←ここ
+    run_training(args, model, dial_train_torch, dial_test_torch, cnn_dial=cnn_dial, device=device)  # ←ここ
     save_all("after_dial")
 
 # ★おすすめ：dial を固定して、Stage3で針リークに戻るのを防ぐ
