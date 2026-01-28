@@ -245,6 +245,9 @@ class RowLabels:
     rot_cls: int
     h_img_cls: int
     m_img_cls: int
+    # 針の連続角度（12時=0°, 時計回り[0,360)）。ソフトラベル生成に使う。
+    h_deg: Optional[float] = None
+    m_deg: Optional[float] = None
     # 12時キーポイント（画像座標 224x224）。dialのヒートマップ教師あり学習に使う。
     twelve_x: Optional[float] = None
     twelve_y: Optional[float] = None
@@ -383,6 +386,10 @@ class RotationCsvTorchDataset(torch.utils.data.Dataset):
         m_img_cls = angle_cls_12(mx, my, cx, cy)
         h_img_cls = angle_cls_12(hx, hy, cx, cy)
 
+        # 連続角度も保持（ソフトラベル用）
+        m_deg = angle_deg_clockwise_from_12(mx - cx, my - cy)
+        h_deg = angle_deg_clockwise_from_12(hx - cx, hy - cy)
+
         twelve_x = None
         twelve_y = None
         if getattr(self, "kp12_map", None) is not None:
@@ -396,6 +403,8 @@ class RotationCsvTorchDataset(torch.utils.data.Dataset):
             rot_cls=rot_cls,
             h_img_cls=h_img_cls,
             m_img_cls=m_img_cls,
+            h_deg=h_deg,
+            m_deg=m_deg,
             twelve_x=twelve_x,
             twelve_y=twelve_y,
         )
@@ -752,12 +761,182 @@ def train_dial_heatmap_supervised(
                   f"train_acc={correct/max(total,1):.4f}  "
                   f"test_loss={ev_loss/max(ev_n,1):.4f} test_acc={ev_correct/max(ev_total,1):.4f}")
 
+
+
+# ------------------------------
+# 5-1) Hands soft-label supervised training (optional)
+# ------------------------------
+
+def _soft_targets_12_from_angles_deg(
+    angles_deg: torch.Tensor, sigma_deg: float, device: torch.device
+) -> torch.Tensor:
+    """
+    angles_deg: (B,) in [0,360)
+    returns: soft targets (B,12) where bin centers are 0,30,...,330 deg
+    """
+    angles = angles_deg.to(device).float().view(-1, 1)  # (B,1)
+    centers = (torch.arange(12, device=device).float() * 30.0).view(1, -1)  # (1,12)
+    # circular difference in [-180,180]
+    diff = (angles - centers + 180.0) % 360.0 - 180.0
+    w = torch.exp(-0.5 * (diff / max(float(sigma_deg), 1e-6)) ** 2)
+    w = w / (w.sum(dim=1, keepdim=True) + 1e-9)
+    return w
+
+
+def train_hands_softlabel_supervised(
+    args,
+    cnn_hour: nn.Module,
+    cnn_minute: nn.Module,
+    train_torch: RotationCsvTorchDataset,
+    test_torch: RotationCsvTorchDataset,
+    device: torch.device,
+):
+    """
+    hands を DeepProbLog を介さず、ソフトラベル（ガウス）で教師あり学習する。
+
+    目的:
+      - 12分類の境界（30°刻み）でラベルが跳ねる問題を緩和
+      - Stage2（hands pretrain）を安定化
+
+    使い方:
+      --hands_softlabel_sigma 10  のように sigma(deg) を指定すると、この学習に切り替わる。
+    """
+    sigma = float(args.hands_softlabel_sigma)
+    assert sigma > 0.0
+
+    cnn_hour.train()
+    cnn_minute.train()
+
+    # separate optimizers (same lr)
+    opt_h = torch.optim.Adam(filter(lambda p: p.requires_grad, cnn_hour.parameters()), lr=args.lr_hands)
+    opt_m = torch.optim.Adam(filter(lambda p: p.requires_grad, cnn_minute.parameters()), lr=args.lr_hands)
+
+    train_loader = torch.utils.data.DataLoader(
+        train_torch,
+        batch_size=args.batch_size,
+        shuffle=True,
+        num_workers=0,
+        collate_fn=collate_labels_list,
+    )
+    test_loader = torch.utils.data.DataLoader(
+        test_torch,
+        batch_size=args.batch_size,
+        shuffle=False,
+        num_workers=0,
+        collate_fn=collate_labels_list,
+    )
+
+    eps = 1e-8
+
+    def _eval():
+        cnn_hour.eval()
+        cnn_minute.eval()
+        total = 0
+        correct_h = 0
+        correct_m = 0
+        loss_sum = 0.0
+        n_sum = 0
+        with torch.no_grad():
+            for imgs, labels in test_loader:
+                imgs = imgs.to(device)
+
+                # hard labels for acc
+                h_hard = torch.tensor([int(l.h_img_cls) for l in labels], device=device, dtype=torch.long)
+                m_hard = torch.tensor([int(l.m_img_cls) for l in labels], device=device, dtype=torch.long)
+
+                # angles for soft targets
+                h_ang = torch.tensor([float(l.h_deg) if l.h_deg is not None else float(l.h_img_cls) * 30.0 for l in labels],
+                                     device=device)
+                m_ang = torch.tensor([float(l.m_deg) if l.m_deg is not None else float(l.m_img_cls) * 30.0 for l in labels],
+                                     device=device)
+                th = _soft_targets_12_from_angles_deg(h_ang, sigma, device)
+                tm = _soft_targets_12_from_angles_deg(m_ang, sigma, device)
+
+                ph = cnn_hour(imgs)  # (B,12) probs
+                pm = cnn_minute(imgs)
+
+                # soft cross-entropy: -sum t*log p
+                lh = -(th * torch.log(ph + eps)).sum(dim=1).mean()
+                lm = -(tm * torch.log(pm + eps)).sum(dim=1).mean()
+                loss = (lh + lm).item()
+
+                pred_h = ph.argmax(dim=1)
+                pred_m = pm.argmax(dim=1)
+
+                total += imgs.size(0)
+                correct_h += (pred_h == h_hard).sum().item()
+                correct_m += (pred_m == m_hard).sum().item()
+                loss_sum += loss * imgs.size(0)
+                n_sum += imgs.size(0)
+
+        cnn_hour.train()
+        cnn_minute.train()
+        return loss_sum / max(n_sum, 1), correct_h / max(total, 1), correct_m / max(total, 1)
+
+    print(f"[hands-soft] Training for {args.epochs} epoch(s)  sigma={sigma}deg  batch={args.batch_size}")
+
+    for ep in range(1, args.epochs + 1):
+        total = 0
+        loss_sum = 0.0
+        correct_h = 0
+        correct_m = 0
+
+        for step, (imgs, labels) in enumerate(train_loader, start=1):
+            imgs = imgs.to(device)
+
+            # angles -> soft targets
+            h_ang = torch.tensor([float(l.h_deg) if l.h_deg is not None else float(l.h_img_cls) * 30.0 for l in labels],
+                                 device=device)
+            m_ang = torch.tensor([float(l.m_deg) if l.m_deg is not None else float(l.m_img_cls) * 30.0 for l in labels],
+                                 device=device)
+            th = _soft_targets_12_from_angles_deg(h_ang, sigma, device)
+            tm = _soft_targets_12_from_angles_deg(m_ang, sigma, device)
+
+            # hard labels for accuracy display
+            h_hard = torch.tensor([int(l.h_img_cls) for l in labels], device=device, dtype=torch.long)
+            m_hard = torch.tensor([int(l.m_img_cls) for l in labels], device=device, dtype=torch.long)
+
+            ph = cnn_hour(imgs)
+            pm = cnn_minute(imgs)
+
+            lh = -(th * torch.log(ph + eps)).sum(dim=1).mean()
+            lm = -(tm * torch.log(pm + eps)).sum(dim=1).mean()
+            loss = lh + lm
+
+            opt_h.zero_grad(set_to_none=True)
+            opt_m.zero_grad(set_to_none=True)
+            loss.backward()
+            opt_h.step()
+            opt_m.step()
+
+            with torch.no_grad():
+                pred_h = ph.argmax(dim=1)
+                pred_m = pm.argmax(dim=1)
+                correct_h += (pred_h == h_hard).sum().item()
+                correct_m += (pred_m == m_hard).sum().item()
+                total += imgs.size(0)
+                loss_sum += loss.item() * imgs.size(0)
+
+            if args.log_iter and (step % args.log_iter == 0):
+                print(f"  [ep{ep:02d} step{step:04d}] loss={loss_sum/max(total,1):.4f} "
+                      f"hour_acc={correct_h/max(total,1):.4f} min_acc={correct_m/max(total,1):.4f}")
+
+        ev_loss, ev_h, ev_m = _eval()
+        print(f"[ep{ep:02d}] train_loss={loss_sum/max(total,1):.4f} "
+              f"train_hour_acc={correct_h/max(total,1):.4f} train_min_acc={correct_m/max(total,1):.4f} | "
+              f"test_loss={ev_loss:.4f} test_hour_acc={ev_h:.4f} test_min_acc={ev_m:.4f}")
+
+    print("[hands-soft] done.")
+
+
 def run_training(
     args,
     model: Model,
     train_torch: RotationCsvTorchDataset,
     test_torch: RotationCsvTorchDataset,
     cnn_dial: Optional[nn.Module] = None,
+    cnn_hour: Optional[nn.Module] = None,
+    cnn_minute: Optional[nn.Module] = None,
     device: Optional[torch.device] = None,
 ):
     # dialのみ：12時キーポイントCSVが読み込まれている場合は、ヒートマップ教師あり学習を優先する
@@ -765,6 +944,13 @@ def run_training(
         if cnn_dial is None or device is None:
             raise ValueError("cnn_dial/device is required for dial-kp supervised training")
         train_dial_heatmap_supervised(args, cnn_dial, train_torch, test_torch, device)
+        return
+
+    # hands: ソフトラベル教師あり（オプション）
+    if args.task == "hands" and getattr(args, "hands_softlabel_sigma", 0.0) and float(args.hands_softlabel_sigma) > 0.0:
+        if cnn_hour is None or cnn_minute is None or device is None:
+            raise ValueError("cnn_hour/cnn_minute/device is required for hands-softlabel supervised training")
+        train_hands_softlabel_supervised(args, cnn_hour, cnn_minute, train_torch, test_torch, device)
         return
 
     if args.task == "dial":
@@ -812,10 +998,17 @@ def parse_args():
 
     p.add_argument("--batch_size", type=int, default=8)
     p.add_argument("--epochs", type=int, default=5)
+    p.add_argument("--epochs_dial", type=int, default=None, help="dial段階のepoch数（未指定なら --epochs を使う）")
+    p.add_argument("--epochs_hands", type=int, default=None, help="hands段階のepoch数（未指定なら --epochs を使う）")
+    p.add_argument("--epochs_time", type=int, default=None, help="time段階のepoch数（未指定なら --epochs を使う）")
     p.add_argument("--log_iter", type=int, default=100)
 
     p.add_argument("--lr_dial", type=float, default=1e-4)
     p.add_argument("--lr_hands", type=float, default=1e-4)
+
+    # hands soft-label supervised pretraining（Stage2）
+    p.add_argument("--hands_softlabel_sigma", type=float, default=0.0,
+                   help=">0でhands pretrainをソフトラベル(ガウス)教師ありに切替（sigma=度）。0なら従来通りDeepProbLogでhands学習")
 
     # dial architecture
     p.add_argument("--dial_arch", type=str, default="heatmap",
@@ -945,28 +1138,44 @@ def main():
         torch.save(cnn_minute.state_dict(), os.path.join(args.save_dir, f"minute_{tag}.pth"))
         print(f"[saved] {tag} -> {args.save_dir}/")
 
+    # stageごとにepochを変えたい場合（未指定なら --epochs を使う）
+    base_epochs = int(args.epochs)
+    def _set_stage_epochs(stage: str):
+        if stage == "dial":
+            args.epochs = int(args.epochs_dial) if args.epochs_dial is not None else base_epochs
+        elif stage == "hands":
+            args.epochs = int(args.epochs_hands) if args.epochs_hands is not None else base_epochs
+        elif stage == "time":
+            args.epochs = int(args.epochs_time) if args.epochs_time is not None else base_epochs
+        else:
+            args.epochs = base_epochs
+
     if args.run == "dial":
         args.task = "dial"
-        run_training(args, model, dial_train_torch, dial_test_torch, cnn_dial=cnn_dial, device=device)  # ←ここ
+        _set_stage_epochs("dial")
+        run_training(args, model, dial_train_torch, dial_test_torch, cnn_dial=cnn_dial, cnn_hour=cnn_hour, cnn_minute=cnn_minute, device=device)  # ←ここ
         save_all("dial")
         return
 
     if args.run == "hands":
         args.task = "hands"
-        run_training(args, model, train_torch, test_torch)
+        _set_stage_epochs("hands")
+        run_training(args, model, train_torch, test_torch, cnn_hour=cnn_hour, cnn_minute=cnn_minute, device=device)
         save_all("hands")
         return
 
     if args.run == "time":
         args.task = "time"
-        run_training(args, model, train_torch, test_torch)
+        _set_stage_epochs("time")
+        run_training(args, model, train_torch, test_torch, cnn_hour=cnn_hour, cnn_minute=cnn_minute, device=device)
         save_all("time")
         return
 
     # pretrain_and_finetune
     print("=== Stage 1: dial pretrain (NOHANDS) ===")
     args.task = "dial"
-    run_training(args, model, dial_train_torch, dial_test_torch, cnn_dial=cnn_dial, device=device)  # ←ここ
+    _set_stage_epochs("dial")
+    run_training(args, model, dial_train_torch, dial_test_torch, cnn_dial=cnn_dial, cnn_hour=cnn_hour, cnn_minute=cnn_minute, device=device)  # ←ここ
     save_all("after_dial")
 
 # ★おすすめ：dial を固定して、Stage3で針リークに戻るのを防ぐ
@@ -977,12 +1186,14 @@ def main():
         
     print("=== Stage 2: hands pretrain ===")
     args.task = "hands"
-    run_training(args, model, train_torch, test_torch)
+    _set_stage_epochs("hands")
+    run_training(args, model, train_torch, test_torch, cnn_hour=cnn_hour, cnn_minute=cnn_minute, device=device)
     save_all("after_hands")
 
     print("=== Stage 3: time finetune (integrated constraints) ===")
     args.task = "time"
-    run_training(args, model, train_torch, test_torch)
+    _set_stage_epochs("time")
+    run_training(args, model, train_torch, test_torch, cnn_hour=cnn_hour, cnn_minute=cnn_minute, device=device)
     save_all("after_time")
 
     print("Done.")

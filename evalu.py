@@ -419,3 +419,19 @@ if __name__ == "__main__":
 # #  [ 14   3   1   0   3   0  48   0   0 105  22   9]]
 # python evalu.py --data_root clock_kaggle --csv rotations_new.csv --split test --hour_pth  weights_ep10_csvnew12_heatmap_hands/hour_after_hands.pth --minute_pth  weights_ep10_csvnew12_heatmap_hands/minute_after_hands.pth
 # [HANDS] split=test  hour_acc=0.2404  minute_acc=0.3302  joint=0.0814  (random=0.0833)
+
+# ruka@rukanoMacBook-Air Senior_Thesis % python evalu.py --data_root clock_kaggle --csv rotations.csv --split test \
+#   --hour_pth weights_ep10_csvnew12_heatmap_hands/hour_after_hands.pth --minute_pth weights_ep10_csvnew12_heatmap_hands/minute_after_hands.pth
+
+# [HANDS] split=test  hour_acc=0.2161  minute_acc=0.3302  joint=0.0730  (random=0.0833)
+# ruka@rukanoMacBook-Air Senior_Thesis % python evalu.py --data_root clock_kaggle --csv rotations.csv --split test \
+#   --hour_pth weights_ep10_csvnew12_heatmap_hands/hour_after_time.pth --minute_pth weights_ep10_csvnew12_heatmap_hands/minute_after_time.pth
+
+# [HANDS] split=test  hour_acc=0.5014  minute_acc=0.4752  joint=0.2208  (random=0.0833)
+# ruka@rukanoMacBook-Air Senior_Thesis % python evalu.py --data_root clock_kaggle --csv rotations_new.csv --split test \  --hour_pth weights_ep10_csvnew12_heatmap_hands/hour_after_time.pth --minute_pth weights_ep10_csvnew12_heatmap_hands/minute_after_time.pth
+
+# [HANDS] split=test  hour_acc=0.6193  minute_acc=0.4771  joint=0.2825  (random=0.0833)
+# ruka@rukanoMacBook-Air Senior_Thesis % python evalu.py --data_root clock_kaggle --csv rotations_new.csv --split train\
+#   --hour_pth weights_ep10_csvnew12_heatmap_hands/hour_after_time.pth --minute_pth weights_ep10_csvnew12_heatmap_hands/minute_after_time.pth
+
+# [HANDS] split=train  hour_acc=0.6179  minute_acc=0.5033  joint=0.2914  (random=0.0833)
