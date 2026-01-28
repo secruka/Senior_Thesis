@@ -569,6 +569,20 @@ def _gaussian_heatmap_batch_from_xy_img(
     return g.unsqueeze(1)  # (B,1,H,W)
 
 
+def collate_with_rowlabels(batch):
+    """
+    Custom collate function for DataLoader when batch contains (img, RowLabels).
+    Returns: (imgs_tensor, labels_list)
+    """
+    imgs = []
+    labels = []
+    for img, label in batch:
+        imgs.append(img)
+        labels.append(label)
+    imgs = torch.stack(imgs, dim=0)
+    return imgs, labels
+
+
 def train_dial_heatmap_supervised(
     args,
     cnn_dial: nn.Module,
@@ -593,8 +607,8 @@ def train_dial_heatmap_supervised(
     cnn_dial.to(device)
     opt = torch.optim.Adam(cnn_dial.parameters(), lr=args.lr_dial)
 
-    dl_train = torch.utils.data.DataLoader(train_torch, batch_size=args.batch_size, shuffle=True)
-    dl_test  = torch.utils.data.DataLoader(test_torch,  batch_size=args.batch_size, shuffle=False)
+    dl_train = torch.utils.data.DataLoader(train_torch, batch_size=args.batch_size, shuffle=True, collate_fn=collate_with_rowlabels)
+    dl_test  = torch.utils.data.DataLoader(test_torch,  batch_size=args.batch_size, shuffle=False, collate_fn=collate_with_rowlabels)
 
     H = int(args.dial_heatmap_size)
     sigma = float(args.dial_kp_sigma)
