@@ -241,16 +241,28 @@ def eval_dial(model, loader, device):
     model.eval()
     correct = 0
     total = 0
-    cm = np.zeros((4, 4), dtype=int)
+    cm = None
 
     for x, y, _fname in loader:
         x = x.to(device)
         y = y.to(device)
         logits = model(x)
         pred = torch.argmax(logits, dim=1)
+
+        # initialize confusion matrix on first batch to match prediction width
+        if cm is None:
+            n_pred = logits.shape[1] if logits.ndim > 1 else 1
+            cm = np.zeros((4, n_pred), dtype=int)
+
         correct += (pred == y).sum().item()
         total += y.numel()
         for t, p in zip(y.cpu().numpy(), pred.cpu().numpy()):
+            # expand columns if unseen prediction index appears
+            if int(p) >= cm.shape[1]:
+                new_cols = int(p) + 1
+                new_cm = np.zeros((cm.shape[0], new_cols), dtype=int)
+                new_cm[:, : cm.shape[1]] = cm
+                cm = new_cm
             cm[int(t), int(p)] += 1
 
     acc = correct / max(total, 1)
@@ -308,13 +320,25 @@ def main():
         
         # Try to detect model type by loading weights and checking keys
         weights = torch.load(args.dial_pth, map_location=device)
-        
+
         # If weights contain "head." keys, it's DialHeatmapRotationNet
         if any(k.startswith("head.") for k in weights.keys()):
             dial_model = DialHeatmapRotationNet().to(device)
         else:
-            dial_model = ResNetClassifier(num_classes=4).to(device)
-        
+            # Try to infer classifier output size from checkpoint (avoid size-mismatch)
+            num_classes = 4
+            # common possible keys for linear weight/bias inside our Sequential fc
+            possible_keys = ("backbone.fc.0.weight", "backbone.fc.weight", "backbone.fc.0.bias", "backbone.fc.bias")
+            for k in possible_keys:
+                if k in weights:
+                    w = weights[k]
+                    try:
+                        num_classes = int(w.shape[0])
+                        break
+                    except Exception:
+                        pass
+            dial_model = ResNetClassifier(num_classes=num_classes).to(device)
+
         dial_model.load_state_dict(weights)
         acc, cm = eval_dial(dial_model, dial_ld, device)
         print(f"[DIAL] split={args.split}  acc={acc:.4f}  (random=0.25)")
@@ -350,3 +374,48 @@ if __name__ == "__main__":
 
 # python evalu.py  --data_root clock_kaggle --csv rotations_new.csv --split test --hour_pth weights_epoch10_csvnew_hands/hour_after_hands.pth --minute_pth weights_epoch10_csvnew_hands/minute_after_hands.pth
 # [HANDS] split=test  hour_acc=0.1740  minute_acc=0.0730  joint=0.0196  (random=0.0833)
+
+
+# python evalu.py --data_root clock_kaggle --csv rotations_new.csv --split test --dial_pth weights_ep10_csvnew12_heatmap_hands/dial_after_dial.pth
+# [DIAL] split=test  acc=0.9691  (random=0.25)
+# [DIAL] confusion matrix (true row, pred col):
+# [[510   0   9   1]
+#  [  2 147   1   3]
+#  [  5   0 186   0]
+#  [  3   7   2 193]]
+# PS C:\Users\311\Downloads\Senior_Thesis> python evalu.py --data_root clock_kaggle --csv rotations_new.csv --split test --dial_pth weights_ep10_csvnew12_heatmap_hands/hour_after_time.pth
+# [DIAL] split=test  acc=0.0917  (random=0.25)
+# [DIAL] confusion matrix (true row, pred col):
+# [[ 62  38  30  59  29  48  42 100  30   0  44  38]
+#  [ 25  11   5  21   7  13   9  28   9   0  13  12]
+#  [ 30  16   9  15  16  17  15  45   7   1  21  13]]
+# PS C:\Users\311\Downloads\Senior_Thesis> python evalu.py --data_root clock_kaggle --csv rotations_new.csv --split test --dial_pth weights_ep10_csvnew12_heatmap_hands/hour_after_dial.pth
+# [DIAL] split=test  acc=0.1431  (random=0.25)
+# [DIAL] confusion matrix (true row, pred col):
+# [[  1 305  92  95   0   5   0  13   5   0   4   0]
+#  [  0  84  29  24   0   6   0   6   2   0   2   0]
+#  [  2  98  35  48   0   1   0   2   1   0   4   0]
+#  [  0 114  34  33   0   3   0  13   2   0   6   0]]
+# PS C:\Users\311\Downloads\Senior_Thesis> python evalu.py --data_root clock_kaggle --csv rotations_new.csv --split test --dial_pth weights_ep10_csvnew12_heatmap_hands/hour_after_hands.pth
+# [DIAL] split=test  acc=0.1160  (random=0.25)
+# [DIAL] confusion matrix (true row, pred col):
+# [[  0 382  16   0   0   2   5   2  41  71   0   1]
+#  [  0 119   2   0   0   0   1   0   9  21   0   1]
+#  [  0 145   5   0   0   0   1   0  13  26   0   1]
+#  [  0 155   4   0   0   1   2   0  12  31   0   0]]
+# PS C:\Users\311\Downloads\Senior_Thesis> python evalu.py --data_root clock_kaggle --csv rotations_new.csv --split test --dial_pth weights_ep10_csvnew12_heatmap_hands/minute_after_time.pth 
+# [DIAL] split=test  acc=0.0674  (random=0.25)
+# [DIAL] confusion matrix (true row, pred col):
+# [[  0 109  46  41  46  54  89  23   0   0  38  74]
+#  [  0  32  15  19   7  13  26   8   0   0  10  23]
+#  [  0  45  27  13  17  30  19   6   0   0  12  22]
+#  [  0  41  22  13  19  24  36   0   0   0  17  33]]
+# PS C:\Users\311\Downloads\Senior_Thesis> python evalu.py --data_root clock_kaggle --csv rotations_new.csv --split test --dial_pth weights_ep10_csvnew12_heatmap_hands/minute_after_dial.pth
+# [DIAL] split=test  acc=0.0327  (random=0.25)
+# [DIAL] confusion matrix (true row, pred col):
+# [[ 28   2   0   0   8   0 123   1   0 279  54  25]
+#  [  6   7   0   0   8   0  24   0   0  80  26   2]
+#  [ 11   1   0   0   8   0  34   1   0 107  28   1]
+# #  [ 14   3   1   0   3   0  48   0   0 105  22   9]]
+# python evalu.py --data_root clock_kaggle --csv rotations_new.csv --split test --hour_pth  weights_ep10_csvnew12_heatmap_hands/hour_after_hands.pth --minute_pth  weights_ep10_csvnew12_heatmap_hands/minute_after_hands.pth
+# [HANDS] split=test  hour_acc=0.2404  minute_acc=0.3302  joint=0.0814  (random=0.0833)

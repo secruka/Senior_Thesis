@@ -658,6 +658,22 @@ def build_deepproblog_model(
 # ------------------------------
 
 
+def collate_labels_list(batch):
+    """
+    Custom collate function to convert RowLabels dataclass instances to a list.
+    Batch is a list of (img, labels) tuples where labels is a RowLabels instance.
+    Returns (imgs_tensor, labels_list).
+    """
+    imgs = []
+    labels = []
+    for img, label in batch:
+        imgs.append(img)
+        labels.append(label)
+    
+    imgs = torch.stack(imgs)
+    return imgs, labels
+
+
 def _gaussian_heatmap_batch_from_xy_img(
     x_img: torch.Tensor,
     y_img: torch.Tensor,
@@ -708,8 +724,8 @@ def train_dial_heatmap_supervised(
     cnn_dial.to(device)
     opt = torch.optim.Adam(cnn_dial.parameters(), lr=args.lr_dial)
 
-    dl_train = torch.utils.data.DataLoader(train_torch, batch_size=args.batch_size, shuffle=True)
-    dl_test  = torch.utils.data.DataLoader(test_torch,  batch_size=args.batch_size, shuffle=False)
+    dl_train = torch.utils.data.DataLoader(train_torch, batch_size=args.batch_size, shuffle=True, collate_fn=collate_labels_list)
+    dl_test  = torch.utils.data.DataLoader(test_torch,  batch_size=args.batch_size, shuffle=False, collate_fn=collate_labels_list)
 
     H = int(args.dial_heatmap_size)
     sigma = float(args.dial_kp_sigma)
@@ -1055,9 +1071,9 @@ def main():
     args.task = "dial"
     run_training(args, model, dial_train_torch, dial_test_torch, cnn_dial=cnn_dial, device=device)  # ←ここ
     save_all("after_dial")
-if args.eval_acc:
-    acc = eval_dial_accuracy(cnn_dial, dial_test_torch, device=device, batch_size=max(16, args.batch_size))
-    print(f"[eval][dial] test_acc={acc:.4f}")
+    if args.eval_acc:
+        acc = eval_dial_accuracy(cnn_dial, dial_test_torch, device=device, batch_size=max(16, args.batch_size))
+        print(f"[eval][dial] test_acc={acc:.4f}")
 
 # ★おすすめ：dial を固定して、Stage3で針リークに戻るのを防ぐ
     if not args.finetune_dial:
@@ -1069,20 +1085,19 @@ if args.eval_acc:
     args.task = "hands"
     run_training(args, model, train_torch, test_torch)
     save_all("after_hands")
-if args.eval_acc:
-    ha, ma, ja = eval_hands_accuracy(cnn_hour, cnn_minute, test_torch, device=device, batch_size=max(16, args.batch_size))
-    print(f"[eval][hands] hour_acc={ha:.4f} minute_acc={ma:.4f} joint={ja:.4f}")
-    # 参考: dial も同じ画像で測る（nohandsで学習しているとここは下がりうる）
-    da = eval_dial_accuracy(cnn_dial, test_torch, device=device, batch_size=max(16, args.batch_size))
-    print(f"[eval][dial@withhands] test_acc={da:.4f}")
-
+    if args.eval_acc:
+        ha, ma, ja = eval_hands_accuracy(cnn_hour, cnn_minute, test_torch, device=device, batch_size=max(16, args.batch_size))
+        print(f"[eval][hands] hour_acc={ha:.4f} minute_acc={ma:.4f} joint={ja:.4f}")
+        # 参考: dial も同じ画像で測る（nohandsで学習しているとここは下がりうる）
+        da = eval_dial_accuracy(cnn_dial, test_torch, device=device, batch_size=max(16, args.batch_size))
+        print(f"[eval][dial@withhands] test_acc={da:.4f}")
     print("=== Stage 3: time finetune (integrated constraints) ===")
     args.task = "time"
     run_training(args, model, train_torch, test_torch)
     save_all("after_time")
-if args.eval_acc:
-    ta = eval_time_accuracy_greedy(cnn_dial, cnn_hour, cnn_minute, test_torch, device=device, batch_size=max(16, args.batch_size))
-    print(f"[eval][time-greedy] test_acc={ta:.4f}")
+    if args.eval_acc:
+        ta = eval_time_accuracy_greedy(cnn_dial, cnn_hour, cnn_minute, test_torch, device=device, batch_size=max(16, args.batch_size))
+        print(f"[eval][time-greedy] test_acc={ta:.4f}")
 
     print("Done.")
 
