@@ -9,6 +9,7 @@ python train_clock_integrated_heatmap.py \
   --save_dir weights_cmp/AC_const \
   --dial_arch heatmap
 
+python train_clock_integrated_heatmap.py --data_root clock_kaggle --csv rotations_new.csv --prolog models/clock_integrated.pl --run pretrain_and_finetune --epochs 10 --batch_size 8 --seed 0 --save_dir weights_cmp/AC_const --dial_arch heatmap
 
 python train_clock_integrated_heatmap.py \
   --data_root clock_kaggle \
