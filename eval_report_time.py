@@ -13,7 +13,7 @@ from problog.logic import Term, Var, Constant
 from deepproblog.query import Query
 
 # あなたの現行実装（softlabel版）から流用
-from train_clock_integrated_heatmap_softlabel import (
+from train_clock_integrated_heatmap import (
     RotationCsvTorchDataset,
     build_deepproblog_model,
 )
@@ -360,89 +360,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-# python eval_report_time.py --data_root clock_kaggle --csv rotations_new.csv --split test --prolog models/clock_integrated.pl --dial_pth weights_ep10_csvnew12_heatmap_hands/dial_after_time.pth  --hour_pth weights_ep10_csvnew12_heatmap_hands/hour_after_time.pth  --minute_pth weights_ep10_csvnew12_heatmap_hands/minute_after_time.pth  --dial_arch heatmap --run_dpb --topk 5 --print_examples 15 --out_dir eval_out/after_time_with_dpb
-# /home/user/.pyenv/versions/3.10.0/lib/python3.10/site-packages/deepproblog/engines/__init__.py:6: UserWarning: ApproximateEngine is not available as PySwip could not be found
-#   warnings.warn("ApproximateEngine is not available as PySwip could not be found")
-# device=cuda
-# /home/user/Senior_Thesis/train_clock_integrated_heatmap_softlabel.py:530: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
-#   cnn_dial.load_state_dict(torch.load(weights_dial, map_location=device))
-# /home/user/Senior_Thesis/train_clock_integrated_heatmap_softlabel.py:532: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
-#   cnn_hour.load_state_dict(torch.load(weights_hour, map_location=device))
-# /home/user/Senior_Thesis/train_clock_integrated_heatmap_softlabel.py:534: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
-#   cnn_minute.load_state_dict(torch.load(weights_minute, map_location=device))
-
-# === Single / combined ===
-# N=1069
-# dial_acc             = 0.9616
-# hands hour_acc        = 0.6174
-# hands minute_acc      = 0.4771
-# hands joint_acc       = 0.2816
-# dial_acc * hands_joint= 0.2708  (independence estimate)
-# empirical_all3_joint  = 0.2797  (dial&hour&min same-sample)
-
-# === Time (non-DPB) ===
-# naive_time_exact_acc  = 0.2825
-
-# === Time (DPB integrated) ===
-# dpb_time_exact_acc    = 0.2825
-# delta(dpb-naive)      = +0.0000
-
-# === Per-time (naive) top/bottom ===
-# Top 10 easiest (naive):
-#  hour  minute  n  naive_acc
-#     7      20  9   1.000000
-#     3       5  5   1.000000
-#     3      20  7   1.000000
-#     3      35  6   1.000000
-#     4       5  8   0.875000
-#     3      10  6   0.833333
-#     3      25  6   0.833333
-#     6       5  7   0.714286
-#     8      25 10   0.700000
-#     6      30  9   0.666667
-
-# Bottom 10 hardest (naive):
-#  hour  minute  n  naive_acc
-#    10      20  9        0.0
-#    10      25  8        0.0
-#    11      25  8        0.0
-#    11      15  8        0.0
-#    11      10  3        0.0
-#     2      10  7        0.0
-#    11       5  6        0.0
-#    11      30  9        0.0
-#    11      45  1        0.0
-#     1       0  8        0.0
-
-# === Per-time improvement (dpb - naive) ===
-# Top 10 improved:
-#  hour  minute  n  naive_acc  dpb_acc  delta
-#    12      55  8   0.125000 0.125000    0.0
-#     1       0  8   0.000000 0.000000    0.0
-#     1       5  6   0.166667 0.166667    0.0
-#     1      10  9   0.444444 0.444444    0.0
-#     1      15  9   0.444444 0.444444    0.0
-#     1      20  3   0.000000 0.000000    0.0
-#    11      35  8   0.625000 0.625000    0.0
-#    11      40  8   0.125000 0.125000    0.0
-#    11      45  1   0.000000 0.000000    0.0
-#    11      50  6   0.166667 0.166667    0.0
-
-# Top 10 worsened:
-#  hour  minute  n  naive_acc  dpb_acc  delta
-#    11      45  1   0.000000 0.000000    0.0
-#    11      50  6   0.166667 0.166667    0.0
-#    11      55  9   0.222222 0.222222    0.0
-#    12       0 10   0.000000 0.000000    0.0
-#    12       5  7   0.571429 0.571429    0.0
-#    12      10  9   0.333333 0.333333    0.0
-#    12      20  8   0.375000 0.375000    0.0
-#    12      25  7   0.285714 0.285714    0.0
-#    12      30  9   0.555556 0.555556    0.0
-#     1       5  6   0.166667 0.166667    0.0
-
-# === DPB interpretability signals ===
-# rescued (naive wrong -> dpb correct): 0
-# harmed  (naive correct -> dpb wrong): 0
-
-# Saved: eval_out/after_time_with_dpb/per_sample.csv, per_time.csv (and rescued/harmed if run_dpb)
