@@ -25,6 +25,8 @@ python train_clock_integrated_heatmap.py \
   --load_hour   weights_cmp/AC_const/hour_after_hands.pth \
   --load_minute weights_cmp/AC_const/minute_after_hands.pth
 
+python train_clock_integrated_heatmap.py --data_root clock_kaggle --csv rotations_new.csv --prolog models/clock_integrated.pl --run hands --epochs 10 --batch_size 8 --seed 0 --save_dir weights_cmp/B_hands_long --dial_arch heatmap --load_dial   weights_cmp/AC_const/dial_after_dial.pth --load_hour   weights_cmp/AC_const/hour_after_hands.pth --load_minute weights_cmp/AC_const/minute_after_hands.pth
+
 mkdir -p weights_cmp/D_time_noconstraint
 
 python train_clock_integrated_heatmap.py \
@@ -41,6 +43,8 @@ python train_clock_integrated_heatmap.py \
   --load_dial   weights_cmp/AC_const/dial_after_dial.pth \
   --load_hour   weights_cmp/AC_const/hour_after_hands.pth \
   --load_minute weights_cmp/AC_const/minute_after_hands.pth
+
+python train_clock_integrated_heatmap.py --data_root clock_kaggle --csv rotations_new.csv --prolog models/clock_integrated_noconstraint.pl --run time --epochs 10 --batch_size 8 --seed 0 --save_dir weights_cmp/D_time_noconstraint --dial_arch heatmap --lr_dial --load_dial   weights_cmp/AC_const/dial_after_dial.pth --load_hour   weights_cmp/AC_const/hour_after_hands.pth --load_minute weights_cmp/AC_const/minute_after_hands.pth
 
 python evalu.py --data_root clock_kaggle --csv rotations_new.csv --split test \
   --hour_pth weights_cmp/AC_const/hour_after_hands.pth \
