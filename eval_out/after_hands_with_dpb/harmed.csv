@@ -1,0 +1,1 @@
+gt_hour,gt_min,gt_rot,gt_himg,gt_mimg,dial_pred,dial_ok,dial_conf,hour_pred,hour_ok,hour_conf,min_pred,min_ok,min_conf,hands_joint_ok,all3_joint_ok,naive_hour,naive_min,naive_time_ok,dpb_hour,dpb_min,dpb_best_p,dpb_time_ok,dpb_topk
