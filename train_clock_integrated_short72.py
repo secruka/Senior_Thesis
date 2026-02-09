@@ -209,8 +209,8 @@ def main():
     )
 
     # 以降の学習オーケストレーションは base をそのまま流用
-    if args.run == "dial":
-        base.train_dial_stage(args, model, cnn_dial, dial_train_torch, dial_test_torch, device)
+    if  args.run =="dial":
+        base.run_training(args, model, dial_train_torch, dial_test_torch, cnn_dial=cnn_dial, device=device)
     elif args.run == "hands":
         args.task = "hands"
         base.run_training(args, model, train_torch, test_torch)
@@ -219,7 +219,8 @@ def main():
         base.run_training(args, model, train_torch, test_torch)
     else:
         # pretrain_and_finetune: dial -> hands -> time
-        base.train_dial_stage(args, model, cnn_dial, dial_train_torch, dial_test_torch, device)
+        args.task = "dial"
+        base.run_training(args, model, dial_train_torch, dial_test_torch, cnn_dial=cnn_dial, device=device)
 
         args.task = "hands"
         base.run_training(args, model, train_torch, test_torch)
