@@ -26,9 +26,9 @@ USE_IMAGENET_PRETRAIN = True   # only for resnet18
 IMG_SIZE = 224
 NUM_CLASSES = 144
 
-EPOCHS = 20
-BATCH_SIZE = 64
-LR = 3e-4
+EPOCHS = 10
+BATCH_SIZE = 8
+LR = 1e-4
 NUM_WORKERS = 4
 
 OUT_DIR = Path("./simple_runs")
