@@ -133,6 +133,17 @@ def build_deepproblog_model_short72(
     model.set_engine(base.ExactEngine(model))
     return model, cnn_dial, cnn_hour, cnn_minute
 
+def save_stage_weights(args, cnn_dial, cnn_hour, cnn_minute, stage: str):
+    """Save model weights under args.save_dir with an 'after_<stage>_' prefix.
+    This creates stage-wise snapshots so you can resume/inspect after each phase
+    (e.g., dial -> hands -> time).
+        """
+    os.makedirs(args.save_dir, exist_ok=True)
+    prefix = f"after_{stage}_" if stage else ""
+    torch.save(cnn_dial.state_dict(), os.path.join(args.save_dir, f"{prefix}dial_short72.pth"))
+    torch.save(cnn_hour.state_dict(), os.path.join(args.save_dir, f"{prefix}hour_short72_72cls.pth"))
+    torch.save(cnn_minute.state_dict(), os.path.join(args.save_dir, f"{prefix}minute_short72_12cls.pth"))
+    print(f"[saved] {stage} snapshots written under: {args.save_dir}")
 
 def main():
     args = base.parse_args()
@@ -208,33 +219,34 @@ def main():
         weights_minute=args.load_minute,
     )
 
+
     # 以降の学習オーケストレーションは base をそのまま流用
-    if  args.run =="dial":
-        base.run_training(args, model, dial_train_torch, dial_test_torch, cnn_dial=cnn_dial, device=device)
+    if args.run == "dial":
+        base.train_dial_stage(args, model, cnn_dial, dial_train_torch, dial_test_torch, device)
     elif args.run == "hands":
         args.task = "hands"
         base.run_training(args, model, train_torch, test_torch)
+        save_stage_weights(args, cnn_dial, cnn_hour, cnn_minute, "hands")
     elif args.run == "time":
         args.task = "time"
         base.run_training(args, model, train_torch, test_torch)
+        save_stage_weights(args, cnn_dial, cnn_hour, cnn_minute, "time")
     else:
         # pretrain_and_finetune: dial -> hands -> time
-        args.task = "dial"
-        base.run_training(args, model, dial_train_torch, dial_test_torch, cnn_dial=cnn_dial, device=device)
+        base.train_dial_stage(args, model, cnn_dial, dial_train_torch, dial_test_torch, device)
 
         args.task = "hands"
         base.run_training(args, model, train_torch, test_torch)
-
+        save_stage_weights(args, cnn_dial, cnn_hour, cnn_minute, "hands")
         args.task = "time"
         base.run_training(args, model, train_torch, test_torch)
-
+        save_stage_weights(args, cnn_dial, cnn_hour, cnn_minute, "time")
     # save weights (同名ファイルで上書きされないよう suffix を付ける)
     os.makedirs(args.save_dir, exist_ok=True)
-    torch.save(cnn_dial.state_dict(), os.path.join(args.save_dir, "dial_short72.pth"))
-    torch.save(cnn_hour.state_dict(), os.path.join(args.save_dir, "hour_short72_72cls.pth"))
-    torch.save(cnn_minute.state_dict(), os.path.join(args.save_dir, "minute_short72_12cls.pth"))
-    print("[saved] weights written under:", args.save_dir)
-
+    torch.save(cnn_dial.state_dict(), os.path.join(args.save_dir, "dial_short72_latest.pth"))
+    torch.save(cnn_hour.state_dict(), os.path.join(args.save_dir, "hour_short72_72cls_latest.pth"))
+    torch.save(cnn_minute.state_dict(), os.path.join(args.save_dir, "minute_short72_12cls_latest.pth"))
+    print("[saved] latest weights written under:", args.save_dir)
 
 if __name__ == "__main__":
     main()
