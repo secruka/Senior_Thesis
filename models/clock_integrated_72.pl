@@ -76,7 +76,6 @@ circ_dist72(A, B, D) :-
     D1 > D2,
     D is D2.
 
-
 % allow ±1 bin (5°) tolerance
 near72(A, B) :-
     circ_dist72(A, B, D),
