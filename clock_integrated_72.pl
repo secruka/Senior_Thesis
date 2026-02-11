@@ -75,7 +75,7 @@ near72(A, B) :-
     D =< 1.
 
 % --- expected short-hand bin from (HourIdx0, MinuteIdx12) ---
-% HourIdx0: 0..11 where 0 means 12 o'clock
+% HourIdx0: 0..11 where 0 means 12 oclock
 % MinuteIdx12: 0..11 where each step is 5 minutes
 %
 % True short-hand angle (deg) = 30*HourIdx0 + 2.5*MinuteIdx12  (mod 360)
