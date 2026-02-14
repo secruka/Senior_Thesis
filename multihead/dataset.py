@@ -7,12 +7,14 @@ Classes:
   - ClockDataset: PyTorch Dataset loading annotations.csv
   - DPBComponentDataset: DeepProbLog Dataset for Stage 2 (component training)
   - DPBTimeDataset: DeepProbLog Dataset for Stage 3 (time integration)
+  - LatentClockDataset: Lightweight PyTorch Dataset from folder structure (no annotations.csv)
+  - DPBLatentTimeDataset: DeepProbLog Dataset for latent training (time labels only)
 """
 
 import math
 import os
 from dataclasses import dataclass
-from typing import Optional
+from typing import List, Optional, Tuple
 
 import pandas as pd
 from PIL import Image
@@ -205,6 +207,114 @@ class DPBTimeDataset(Dataset):
     """
 
     def __init__(self, torch_ds: ClockDataset):
+        self.ds = torch_ds
+        self.cache = {}
+
+    def __len__(self):
+        return len(self.ds)
+
+    def to_query(self, i: int):
+        if i not in self.cache:
+            img, lab = self.ds[i]
+            q = Term(
+                "time",
+                Var("X"),
+                Constant(int(lab.time_h)),
+                Constant(int(lab.time_m)),
+            )
+            self.cache[i] = Query(q, {Var("X"): Constant(img)})
+        return self.cache[i]
+
+
+# ---------------------------------------------------------------------------
+# Lightweight dataset for latent-variable training (no annotations.csv)
+# ---------------------------------------------------------------------------
+
+@dataclass
+class LatentClockLabels:
+    """Minimal labels: only time and warmup class index."""
+    time_h: int         # 1-12
+    time_m: int         # 0-55 (5-min steps)
+    class_index: int    # 0-143 (time class for warmup)
+
+
+def _scan_folder_images(
+    data_root: str, subset: str
+) -> List[Tuple[str, int, int]]:
+    """Scan {data_root}/{subset}/{h}-{m}/ for images.
+
+    Returns list of (image_path, hour, minute).
+    """
+    subset_dir = os.path.join(data_root, subset)
+    entries = []
+    for folder_name in sorted(os.listdir(subset_dir)):
+        parts = folder_name.split("-")
+        if len(parts) != 2:
+            continue
+        try:
+            h, m = int(parts[0]), int(parts[1])
+        except ValueError:
+            continue
+        folder_path = os.path.join(subset_dir, folder_name)
+        if not os.path.isdir(folder_path):
+            continue
+        for fname in sorted(os.listdir(folder_path)):
+            if fname.lower().endswith((".jpg", ".jpeg", ".png")):
+                entries.append((os.path.join(folder_path, fname), h, m))
+    return entries
+
+
+class LatentClockDataset(torch.utils.data.Dataset):
+    """PyTorch Dataset loading images from folder structure.
+
+    No annotations.csv needed — time labels come from folder names.
+    Folder structure: {data_root}/{subset}/{hour}-{minute}/image.jpg
+    """
+
+    def __init__(
+        self,
+        data_root: str,
+        subset: str = "train",
+        transform=None,
+        max_samples: Optional[int] = None,
+    ):
+        self.transform = transform or get_transform(train=(subset == "train"))
+        subset = self._normalize_subset(subset)
+        self.entries = _scan_folder_images(data_root, subset)
+        if max_samples is not None:
+            self.entries = self.entries[:int(max_samples)]
+
+    @staticmethod
+    def _normalize_subset(subset: str) -> str:
+        s = (subset or "train").strip().lower()
+        if s in {"val", "valid", "validation"}:
+            return "valid"
+        return s
+
+    def __len__(self):
+        return len(self.entries)
+
+    def __getitem__(self, idx: int):
+        img_path, time_h, time_m = self.entries[idx]
+        img = Image.open(img_path).convert("RGB")
+        if self.transform is not None:
+            img = self.transform(img)
+        labels = LatentClockLabels(
+            time_h=time_h,
+            time_m=time_m,
+            class_index=(time_h % 12) * 12 + time_m // 5,
+        )
+        return img, labels
+
+
+class DPBLatentTimeDataset(Dataset):
+    """DeepProbLog Dataset for latent training: time(X, Hour, Minute).
+
+    Uses only time labels as supervision. No component labels needed.
+    Works with either LatentClockDataset or ClockDataset.
+    """
+
+    def __init__(self, torch_ds):
         self.ds = torch_ds
         self.cache = {}
 
