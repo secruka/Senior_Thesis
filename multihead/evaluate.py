@@ -3,6 +3,8 @@ evaluate.py
 ===========
 Evaluation script for the multi-head clock recognition model.
 
+Supports both 12-class and 72-class hour heads.
+
 Performs:
   - Naive decode: argmax each head -> rotation correction -> time conversion
   - Per-class accuracy analysis
@@ -22,19 +24,20 @@ from torch.utils.data import DataLoader as TorchDataLoader
 from tqdm import tqdm
 
 from multihead.networks import MultiHeadClockNet
-from multihead.dataset import ClockDataset, get_transform
+from multihead.dataset import ClockDataset, LatentClockDataset, get_transform
 
 
 # ---------------------------------------------------------------------------
 # Naive decoding (mirrors the ProbLog logic in Python)
 # ---------------------------------------------------------------------------
 
-ROT_STEPS = {0: 0, 1: 3, 2: 6, 3: 9}
+ROT_STEPS_12 = {0: 0, 1: 3, 2: 6, 3: 9}
+ROT_STEPS_72 = {0: 0, 1: 18, 2: 36, 3: 54}
 
 
-def correct_idx(image_idx: int, steps: int) -> int:
-    """Image coords -> canonical coords (mod 12)."""
-    return (image_idx - steps + 120) % 12
+def correct_idx(image_idx: int, steps: int, mod: int = 12) -> int:
+    """Image coords -> canonical coords (mod N)."""
+    return (image_idx - steps + mod * 10) % mod
 
 
 def idx_to_hour(canon_idx: int) -> int:
@@ -46,14 +49,14 @@ def idx_to_minute(canon_idx: int) -> int:
 
 
 def naive_decode(rot_cls: int, hour_img_cls: int, minute_img_cls: int):
-    """Decode time from raw head predictions.
+    """Decode time from 12-class hour head predictions.
 
     Applies rotation correction and hour-minute coupling constraint.
     Returns (hour, minute).
     """
-    steps = ROT_STEPS[rot_cls]
-    h_pos = correct_idx(hour_img_cls, steps)
-    m_pos = correct_idx(minute_img_cls, steps)
+    steps = ROT_STEPS_12[rot_cls]
+    h_pos = correct_idx(hour_img_cls, steps, 12)
+    m_pos = correct_idx(minute_img_cls, steps, 12)
 
     minute = idx_to_minute(m_pos)
 
@@ -67,6 +70,41 @@ def naive_decode(rot_cls: int, hour_img_cls: int, minute_img_cls: int):
     return hour, minute
 
 
+def naive_decode_72(rot_cls: int, hour_img_cls72: int, minute_img_cls: int):
+    """Decode time from 72-class short-hand + 12-class minute predictions.
+
+    Uses the short_expected72 constraint to find the best hour.
+    Returns (hour, minute).
+    """
+    steps72 = ROT_STEPS_72[rot_cls]
+    steps12 = ROT_STEPS_12[rot_cls]
+
+    s_canon = correct_idx(hour_img_cls72, steps72, 72)
+    m_idx = correct_idx(minute_img_cls, steps12, 12)
+
+    minute = m_idx * 5
+
+    # Find best hour: which HIdx0 gives short_expected closest to s_canon
+    best_hour = 12
+    best_dist = 999
+    for h_idx0 in range(12):
+        # Expected bins for this (h_idx0, m_idx)
+        off = m_idx // 2
+        if m_idx % 2 == 0:
+            expected = [(6 * h_idx0 + off) % 72]
+        else:
+            expected = [(6 * h_idx0 + off) % 72,
+                        (6 * h_idx0 + off + 1) % 72]
+
+        for e in expected:
+            d = min(abs(s_canon - e), 72 - abs(s_canon - e))
+            if d < best_dist:
+                best_dist = d
+                best_hour = idx_to_hour(h_idx0)
+
+    return best_hour, minute
+
+
 # ---------------------------------------------------------------------------
 # Evaluation
 # ---------------------------------------------------------------------------
@@ -75,10 +113,14 @@ def evaluate(args, device):
     """Run evaluation on the test set."""
     print("=" * 60)
     print("Evaluating Multi-Head Clock Model")
+    print(f"  Hour classes: {args.hour_classes}")
     print("=" * 60)
 
+    use_72 = (args.hour_classes == 72)
+    decode_fn = naive_decode_72 if use_72 else naive_decode
+
     # Load model
-    shared_net = MultiHeadClockNet().to(device)
+    shared_net = MultiHeadClockNet(hour_classes=args.hour_classes).to(device)
     if args.weights:
         shared_net.load_state_dict(
             torch.load(args.weights, map_location=device)
@@ -89,11 +131,18 @@ def evaluate(args, device):
 
     shared_net.eval()
 
-    # Load dataset
-    test_ds = ClockDataset(
-        args.data_root, args.annotations, subset=args.subset,
-        transform=get_transform(train=False), max_samples=args.max_samples,
-    )
+    # Load dataset — use LatentClockDataset (folder-based) if no annotations
+    annotations_path = getattr(args, "annotations", None)
+    if annotations_path and os.path.exists(annotations_path):
+        test_ds = ClockDataset(
+            args.data_root, annotations_path, subset=args.subset,
+            transform=get_transform(train=False), max_samples=args.max_samples,
+        )
+    else:
+        test_ds = LatentClockDataset(
+            args.data_root, subset=args.subset,
+            transform=get_transform(train=False), max_samples=args.max_samples,
+        )
 
     def collate_fn(batch):
         imgs, labels = zip(*batch)
@@ -110,7 +159,6 @@ def evaluate(args, device):
     exact_correct = 0
     hour_correct = 0
     minute_correct = 0
-    rot_correct = 0
     total = 0
 
     # Per-time-class tracking
@@ -129,17 +177,12 @@ def evaluate(args, device):
             for i in range(len(labels)):
                 lab = labels[i]
                 gt_h, gt_m = lab.time_h, lab.time_m
-                gt_rot = lab.rot_cls
 
                 pred_rot = rot_probs[i].argmax().item()
                 pred_h_img = hour_probs[i].argmax().item()
                 pred_m_img = min_probs[i].argmax().item()
 
-                pred_h, pred_m = naive_decode(pred_rot, pred_h_img, pred_m_img)
-
-                # Rotation accuracy
-                if pred_rot == gt_rot:
-                    rot_correct += 1
+                pred_h, pred_m = decode_fn(pred_rot, pred_h_img, pred_m_img)
 
                 # Hour accuracy
                 if pred_h == gt_h:
@@ -172,7 +215,6 @@ def evaluate(args, device):
     print(f"Exact match acc:   {exact_correct/total:.4f} ({exact_correct}/{total})")
     print(f"Hour accuracy:     {hour_correct/total:.4f} ({hour_correct}/{total})")
     print(f"Minute accuracy:   {minute_correct/total:.4f} ({minute_correct}/{total})")
-    print(f"Rotation accuracy: {rot_correct/total:.4f} ({rot_correct}/{total})")
 
     # Per-time-class analysis
     if args.verbose:
@@ -211,6 +253,9 @@ def main():
                         choices=["train", "valid", "test"])
     parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument("--max_samples", type=int, default=None)
+    parser.add_argument("--hour_classes", type=int, default=72,
+                        choices=[12, 72],
+                        help="Number of hour head classes (12 or 72)")
     parser.add_argument("--verbose", action="store_true",
                         help="Print per-time-class accuracy")
 
@@ -218,10 +263,6 @@ def main():
 
     if args.annotations is None:
         args.annotations = os.path.join(args.data_root, "annotations.csv")
-
-    if not os.path.exists(args.annotations):
-        print(f"ERROR: {args.annotations} not found")
-        sys.exit(1)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Device: {device}")
