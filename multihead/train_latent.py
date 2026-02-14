@@ -267,8 +267,6 @@ def main():
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--load_warmup", type=str, default=None,
                         help="Path to pre-trained warmup weights")
-    parser.add_argument("--hour_classes", type=int, default=72,
-                        help="Number of classes for hour head (default: 72)")
 
     args = parser.parse_args()
 
@@ -289,7 +287,6 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Device: {device}")
     print(f"ProbLog: {args.prolog}")
-    print(f"Hour classes: {args.hour_classes}")
 
     # ---------------------------------------------------------------
     # Stage 1: Backbone Warmup
@@ -301,7 +298,7 @@ def main():
     # ---------------------------------------------------------------
     # Stage 2: Latent DPB Training
     # ---------------------------------------------------------------
-    shared_net = MultiHeadClockNet(hour_classes=args.hour_classes).to(device)
+    shared_net = MultiHeadClockNet().to(device)
 
     # Transfer backbone from warmup
     if warmup_net is not None:
