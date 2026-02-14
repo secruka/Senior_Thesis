@@ -5,6 +5,9 @@ Neural network modules for the multi-head clock recognition model.
 
 Architecture:
   - MultiHeadClockNet: Shared EfficientNet-B0 backbone + 3 classification heads
+      head_rot:    4-class  (dial rotation)
+      head_hour:   72-class (short-hand angle, 5-deg bins, image coords)
+      head_minute: 12-class (minute-hand angle, 30-deg bins, image coords)
   - WarmupNet: Temporary 144-class classifier for Stage 1 backbone pretraining
   - RotAdapter / HourAdapter / MinuteAdapter: Thin wrappers for DeepProbLog Network
 """
@@ -19,19 +22,20 @@ class MultiHeadClockNet(nn.Module):
 
     Heads:
       - head_rot:    4-class rotation (0/90/180/270 degrees)
-      - head_hour:   12-class hour-hand angle (30-degree bins, image coords)
+      - head_hour:   72-class short-hand angle (5-degree bins, image coords)
       - head_minute: 12-class minute-hand angle (30-degree bins, image coords)
 
     All heads output softmax probabilities (required by DeepProbLog).
     """
 
-    def __init__(self, dropout: float = 0.2):
+    def __init__(self, dropout: float = 0.2, hour_classes: int = 72):
         super().__init__()
         eff = models.efficientnet_b0(weights=models.EfficientNet_B0_Weights.DEFAULT)
         # Extract feature layers (everything except the classifier)
         self.features = eff.features
         self.avgpool = nn.AdaptiveAvgPool2d(1)
         feat_dim = 1280  # EfficientNet-B0 output channels
+        self.hour_classes = hour_classes
 
         self.head_rot = nn.Sequential(
             nn.Dropout(dropout),
@@ -40,7 +44,7 @@ class MultiHeadClockNet(nn.Module):
         )
         self.head_hour = nn.Sequential(
             nn.Dropout(dropout),
-            nn.Linear(feat_dim, 12),
+            nn.Linear(feat_dim, hour_classes),
             nn.Softmax(dim=1),
         )
         self.head_minute = nn.Sequential(
