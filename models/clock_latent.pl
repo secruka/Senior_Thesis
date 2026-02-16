@@ -5,18 +5,18 @@
 %
 % Supervision: time(Image, Hour, Minute) ONLY.
 % The decomposition into dial rotation (R), short-hand angle (S),
-% and minute-hand angle (M) is fully latent — DeepProbLog marginalises
+% and minute-hand angle (M) is fully latent - DeepProbLog marginalises
 % over all valid (R, S, M) groundings that satisfy the time constraint.
 %
-% Neural predicates (all outputs are latent — no direct labels):
+% Neural predicates (all outputs are latent - no direct labels):
 %   net_rot    : dial rotation classifier     (4 classes: 0/90/180/270)
 %   net_hour   : short-hand angle classifier  (72 classes, 5-deg bins, image coords)
 %   net_minute : minute-hand angle classifier (12 classes, 30-deg bins, image coords)
 %
 % Key constraint:
-%   The short-hand's canonical 5-deg bin is determined by BOTH hour AND minute
+%   The short-hands canonical 5-deg bin is determined by BOTH hour AND minute
 %   via short_expected72/3. This couples the hour and minute heads through
-%   the clock's continuous geometry, making DeepProbLog's marginalisation
+%   the clocks continuous geometry, making DeepProbLogs marginalisation
 %   essential for learning.
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -100,7 +100,7 @@ short_expected72(HIdx0, MIdx12, SExp) :-
     SExp is (6 * HIdx0 + Off + 1) mod 72.
 
 % --- sole query predicate: time(Image, Hour, Minute) ---
-% R, S, M are all latent — marginalised by DeepProbLog.
+% R, S, M are all latent - marginalised by DeepProbLog.
 time(X, Hour, Minute) :-
     dial(X, RIdx),
     hour_img(X, SImg),
